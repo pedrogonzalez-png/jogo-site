@@ -1,5 +1,7 @@
 # Relatório final da auditoria técnica — Abismo
 
+> **Complemento final — validação visual real (21/10/2026):** execução mais recente do código em [GitHub Actions #39680748262](https://github.com/pedrogonzalez-png/jogo-site/actions/runs/39680748262), commit `70d2dac3ea7b0af43f31584451ce3611b6b3f028`: **24/24 testes**, build Vite e smoke Chromium **aprovados**. As **cinco capturas foram efetivamente abertas e inspecionadas** (menu, gameplay após fade, inventário, morte e respawn). Zoom cortando a interface e tela de morte inteiramente preta foram corrigidos. A cena ainda apresenta **luminosidade baixa e textos de HUD/inventário pequenos**, que demandam polimento visual; esta inspeção parcial **não valida esteticamente os 10 biomas**. A execução anterior #39679081571 permanece registro histórico dos primeiros resultados de browser.
+
 **Data:** 21 de outubro de 2026  
 **Branch auditada:** `fix/auditoria-integral-2026-10-21`  
 **Pull Request:** [#3 — auditoria integral, invariantes e testes](https://github.com/pedrogonzalez-png/jogo-site/pull/3)  
@@ -66,3 +68,18 @@ O relatório [AUDITORIA_CODIGO_2026-10-21.md](AUDITORIA_CODIGO_2026-10-21.md) de
 **Não foi aplicado merge à `main`.** A branch permanece em Pull Request de revisão. Para validar o conteúdo inteiro do jogo, seguir `ROTEIRO_QA_ANTIGRAVITY.md`, registrar resultado em navegador para cada funcionalidade e atualizar os IDs somente com evidências. Não afirmar cobertura completa ou “jogo 100% validado” por causa deste relatório.
 
 [Ver Pull Request #3](https://github.com/pedrogonzalez-png/jogo-site/pull/3) · [Ver CI + screenshots](https://github.com/pedrogonzalez-png/jogo-site/actions/runs/39679081571)
+
+## 8. Inspeção das capturas e correções visuais adicionais
+
+As imagens do CI foram extraídas e abertas, não apenas listadas no pipeline. O primeiro lote revelou a UI cortada pela câmera em zoom 1,5× e uma tela de morte inteiramente preta (o fadeOut permanecia ativo mesmo após os elementos do modal serem criados). Após a correção, **as capturas de inventário e morte mostram os elementos inteiros e visíveis**.
+
+| ID | Falha confirmada por screenshot | Alteração | Resultado observado |
+|---|---|---|---|
+| **AUD-026** | Inventário cortado vertical e horizontalmente: colunas e título fora do campo visível | `GameScene._setupCamera()` usa zoom 1 na resolução lógica 1280×720 | Em nova captura, título, três colunas, botão fechar e painéis estão dentro da tela |
+| **AUD-027** | Captura de morte totalmente preta, embora os botões estivessem recebendo clique | `GameScene._showDeathScreen()` restaura a imagem via fadeIn após a criação do modal | Texto “VOCÊ MORREU”, XP perdida, renascer e menu aparecem no novo screenshot |
+| **AUD-028** | Chão muito escuro com fundo absoluto preto | `TextureBootManager.js` passa a usar base `#171920` nos tiles ASCII | Cena ficou mais visível após fade completo; contraste, destaque do personagem e legibilidade permanecem **pendentes de arte/UX** |
+| **AUD-029** | Screenshot inicial da sala era tirado enquanto fadeIn ainda estava em progresso, exagerando a impressão de escuridão | `scripts/browser-smoke.mjs` aguarda fade antes das capturas de gameplay e respawn | Capturas após transição, reproduzíveis e comparáveis |
+
+**Evidências:** [Run 39680748262 — resultados e artefato de screenshots](https://github.com/pedrogonzalez-png/jogo-site/actions/runs/39680748262).
+
+O efeito de escurecimento do primeiro lote tinha duas causas distintas: o fade transitório e a paleta/textura muito escura. O fade foi corrigido para a captura e para a tela de morte; não há base para afirmar que a iluminação/art direction do jogo esteja finalizada. Esta revisão preserva a arte do cavaleiro e não inventa poses extras.
