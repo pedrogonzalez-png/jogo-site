@@ -397,7 +397,10 @@ export class GameScene extends Phaser.Scene {
 
       // Anomalia rara
       if (rng.next() < (biome.anomalyChance ?? 0.05)) {
-        template.level   = Math.round(template.level   * rng.next() * 3 + 1.5);
+        // Multiplicador 1.5x..4.5x sobre o nível original;
+        // a expressão antiga multiplicava por RNG antes de somar 1.5,
+        // podendo reduzir um inimigo de alto nível para nível 2.
+        template.level   = Math.max(1, Math.round(template.level * (1.5 + rng.next() * 3)));
         template.hp      = Math.round(template.hp      * 2.5);
         template.attack  = Math.round(template.attack  * 2);
         template.xp      = Math.round(template.xp      * 5);
@@ -1458,6 +1461,8 @@ export class GameScene extends Phaser.Scene {
     const chestXP = 25 + areaLevel * 4;
     this.xpSystem.addXP(chestXP);
     this._floatXP(x, y - 20, chestXP);
+    // Persistir o estado do baú e os itens/XP no mesmo snapshot.
+    this._autosave();
   }
 
   _floatXP(x, y, amount) {
