@@ -26,6 +26,8 @@
 
 ---
 
+> **Novo para Antigravity (2026-10-21):** [Backlog operacional com 56 subtarefas](04-gestao/BACKLOG_ANTIGRAVITY.md) · [Guia do agente](ANTIGRAVITY_LEIA_PRIMEIRO.md) · [Divergências entre a auditoria antiga e o código](04-gestao/REGISTRO_DE_DIVERGENCIAS.md). **Os 55 status históricos abaixo não foram recalculados.**
+>
 > **Organização:** este arquivo funciona como painel geral e índice das tarefas. O conteúdo detalhado e os mesmos IDs, status, critérios e evidências da revisão de 2026-10-09 foram distribuídos nos documentos abaixo. **Os números acima são históricos e não foram revalidados nesta reorganização.**
 >
 > **Regra de navegação:** [Índice da documentação](README.md) · [Arquitetura](ESTRUTURA_DO_PROJETO.md) · [Rastreabilidade do GDD](04-gestao/RASTREABILIDADE_GDD.md)
