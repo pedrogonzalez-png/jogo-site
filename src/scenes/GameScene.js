@@ -726,14 +726,8 @@ export class GameScene extends Phaser.Scene {
     this._isTransitioning = true;
     this.player.body.setVelocity(0, 0);
 
-    // Illusion logic for BIBLIOTECA_DO_OCULTO
-    if (this.areaData.biome.id === 'BIBLIOTECA_DO_OCULTO' && this._currentRoom) {
-      const rng = this._currentRoom.rng.fork(8);
-      if (rng.next() < 0.25) { // 25% chance of illusory door redirecting to a random visited room
-         targetIndex = rng.pick(Array.from(this.areaData.rooms.keys()));
-         this.hud.showNotification('Ilusão Ativada', '#796395', 2000);
-      }
-    }
+    // Portas comuns seguem sempre o grafo validado. O teleporte ilusório
+    // ocorre exclusivamente no hazard IllusionDoor (_updateEnvironmentalInteractions).
 
     this.cameras.main.fadeOut(180, 0, 0, 0);
     this.cameras.main.once('camerafadeoutcomplete', () => {
