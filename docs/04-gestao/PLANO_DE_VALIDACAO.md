@@ -1,6 +1,8 @@
 # Plano de QA, testes e evidências para Antigravity
 
-> **Execução automatizada em 21/10/2026:** [GitHub Actions / run 39677024455](https://github.com/pedrogonzalez-png/jogo-site/actions/runs/39677024455): `npm ci`, **21 testes aprovados, 0 falhas**, `npm run build` aprovado em Node.js 22. Os testes integram `tests/core-systems.test.js`, `tests/world-generation.test.js` e `tests/source-integrity.test.js`.
+> **Execução automatizada em 21/10/2026:**> **Atualização final:** [GitHub Actions 39679081571](https://github.com/pedrogonzalez-png/jogo-site/actions/runs/39679081571): **24 testes aprovados**, build Vite aprovado, além de smoke real com Playwright/Chromium. Foram verificados menu, jogador, texturas, inventário, troca de sala, descarte de projéteis, morte, renascimento e IndexedDB. **Restante do QA manual permanece aberto.** [Relatório final](../06-auditoria/RELATORIO_FINAL_2026-10-21.md).
+>
+ [GitHub Actions / run 39677024455](https://github.com/pedrogonzalez-png/jogo-site/actions/runs/39677024455): `npm ci`, **21 testes aprovados, 0 falhas**, `npm run build` aprovado em Node.js 22. Os testes integram `tests/core-systems.test.js`, `tests/world-generation.test.js` e `tests/source-integrity.test.js`.
 >
 > **Ainda não validado:** navegador/Phaser real, câmera, animação ASCII, física, HUD, interação de inventário, IndexedDB real e FPS. Veja [Auditoria](../06-auditoria/AUDITORIA_CODIGO_2026-10-21.md).
 
