@@ -78,6 +78,9 @@ try {
   assert.equal(state.hasKnight, true, 'Textura de cavaleiro ausente');
   assert.equal(state.hasBossArt, true, 'Textura de chefe ausente');
 
+  // GameScene faz fadeIn(800ms); capturar depois para não confundir
+  // o efeito transitório com um defeito permanente de contraste.
+  await page.waitForTimeout(1000);
   await page.screenshot({ path: `${artifacts}/game.png`, timeout: 20000 });
   console.log('BROWSER-SMOKE: GameScene iniciada: ' + JSON.stringify(state));
 
@@ -147,6 +150,8 @@ try {
   });
   assert.ok(afterRespawn.hp > 0 && afterRespawn.hasDeathOrb,
     'Renascimento perdeu estado da orbe ou não recuperou HP');
+  // O renascimento faz fadeIn(600ms); capturar o quadro estabilizado.
+  await page.waitForTimeout(750);
   await page.screenshot({ path: `${artifacts}/respawn.png`, timeout: 20000 });
   console.log('BROWSER-SMOKE: morte, overlay e respawn: ' + JSON.stringify(afterRespawn));
 
