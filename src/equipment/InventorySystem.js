@@ -19,11 +19,12 @@ export class InventorySystem {
     this.uniqueItemIds = new Set();
   }
 
-  add(item, category) {
+  add(item, category, { transferOwned = false } = {}) {
     if (!CATEGORIES.includes(category) || !item || typeof item !== 'object') return false;
     if (item.rarity === 'UNIQUE') {
       // Identidade do item, não timestamp da instância nem ID do combate.
-      if (typeof item.id !== 'string' || !item.id || this.uniqueItemIds.has(item.id)) return false;
+      if (typeof item.id !== 'string' || !item.id ||
+          (this.uniqueItemIds.has(item.id) && !transferOwned)) return false;
       this.uniqueItemIds.add(item.id);
     }
     this.items[category].push({ ...item, instanceId: this._genId() });
