@@ -13,6 +13,9 @@ import { LootSystem } from '../src/equipment/LootSystem.js';
 import { AbyssChallengeSystem } from '../src/progression/AbyssChallengeSystem.js';
 import { XPSystem } from '../src/progression/XPSystem.js';
 import { WEAPONS } from '../src/data/weapons.js';
+import { ArmorSystem } from '../src/equipment/ArmorSystem.js';
+import { UpgradeSystem } from '../src/equipment/UpgradeSystem.js';
+import { CombatSystem } from '../src/combat/CombatSystem.js';
 
 test('dano físico: zero, defesa >= 2.5x e crítico antes da defesa', () => {
   assert.equal(DamageSystem.calculate(0, 0), 0);
@@ -152,4 +155,42 @@ test('segunda morte elimina a antiga orbe e armazena a XP nova', () => {
   assert.equal(xp.recoverLost(), 25);
   assert.equal(xp.stored, 25);
   assert.equal(xp.hasLostXP, false);
+});
+
+test('upgrades mantêm raridade original quando ela já é superior ao upgrade', () => {
+  const xp = { stored: 10000 };
+  const item = { rarity: 'EPIC', upgradeLevel: 0 };
+  const result = UpgradeSystem.upgrade(item, xp, true);
+  assert.equal(result.success, true);
+  assert.equal(result.newRarity, 'EPIC');
+  assert.equal(item.rarity, 'EPIC');
+  assert.equal(item.upgradeLevel, 1);
+  assert.equal(ArmorSystem.getPieceRarity({ rarity: 'VERY_RARE', upgradeLevel: 1 }), 'VERY_RARE');
+  assert.equal(ArmorSystem.getPieceRarity({ rarity: 'COMMON', upgradeLevel: 16 }), 'LEGENDARY');
+});
+
+test('retornar um item Único já adquirido ao inventário não cria nova recompensa', () => {
+  const inv = new InventorySystem();
+  const unique = { ...WEAPONS.abyss_executioner };
+  assert.equal(inv.add(unique, 'weapons'), true);
+  assert.equal(inv.add(unique, 'weapons'), false);
+  const saved = inv.getAll('weapons')[0];
+  assert.equal(inv.remove(saved.instanceId, 'weapons'), true);
+  assert.equal(inv.add(unique, 'weapons', { transferOwned: true }), true);
+  assert.equal(inv.getAll('weapons').length, 1);
+  assert.equal(inv.add(unique, 'weapons'), false);
+});
+
+test('CombatSystem usa dano concreto da arma em ataques pesados', () => {
+  const attacker = { effectiveAttack: 20, critChance: 0 };
+  let received = -1;
+  const target = {
+    isDead: false, isInvincible: false, effectiveDefense: 0,
+    takeDamage(amount) { received = amount; },
+  };
+  const result = CombatSystem.processHit(attacker, target, 'HEAVY', {
+    damage: 100, equilDamage: 20,
+  });
+  assert.equal(result.finalDamage, 100);
+  assert.equal(received, 100);
 });
