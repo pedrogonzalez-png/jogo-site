@@ -71,6 +71,7 @@ export class GameScene extends Phaser.Scene {
     this.defeatedBosses  = new Set();
     this.abyssDepth      = 0;
     this.abyssUniqueObtained = new Set();
+    this.openedChests = new Set();
     this.discoveredSanctuaries = [];
     this.currentAreaIndex  = 0;
     this.currentRoomIndex  = 0;
@@ -348,7 +349,8 @@ export class GameScene extends Phaser.Scene {
       this._spawnBoss(room);
     } else if (['NORMAL', 'ELITE', 'ENTRANCE'].includes(room.type) && !room.cleared) {
       this._spawnEnemies(room);
-    } else if (room.type === 'CHEST') {
+    } else if (room.type === 'CHEST' &&
+               !this.openedChests.has(`${this.currentAreaIndex}:${room.id}`)) {
       this._spawnChest(room);
     }
   }
@@ -362,6 +364,17 @@ export class GameScene extends Phaser.Scene {
     const pool = isElite ? biome.elitePool : biome.enemyPool;
     const tileW = room.data.tileW;
     const tileH = room.data.tileH;
+    const grid = room.data.grid;
+    const centerX = Math.floor(tileW / 2) * TILE;
+    const centerY = Math.floor(tileH / 2) * TILE;
+    // Proteger os pontos de entrada nas quatro direções (a sala é montada
+    // antes de posicionar o jogador durante uma transição).
+    const entrances = [
+      [6 * TILE, centerY], [2.5 * TILE, centerY],
+      [(tileW - 3.5) * TILE, centerY],
+      [centerX, 2.5 * TILE], [centerX, (tileH - 3.5) * TILE],
+    ];
+    const occupied = [];
 
     for (let i = 0; i < count; i++) {
       const templateId = rng.pick(pool);
@@ -398,17 +411,27 @@ export class GameScene extends Phaser.Scene {
         template.name = `[PERIGO +${template.level - this.levelSystem.level}] ${template.name}`;
       }
 
-      // Posição dentro da sala (evitar paredes e evitar nascer em cima do player)
-      let ex, ey;
-      if (room.type === 'ENTRANCE') {
-        // Posicionados na metade leste da sala
-        ex = Math.floor(tileW * 0.72) * TILE;
-        ey = Math.floor(tileH * (i === 0 ? 0.35 : 0.65)) * TILE;
-      } else {
-        ex = rng.int(4, tileW - 5) * TILE;
-        ey = rng.int(3, tileH - 4) * TILE;
+      // Spawn determinístico: somente chão livre, longe das entradas,
+      // evitando paredes, corpo do jogador e outros inimigos.
+      let position = null;
+      for (let attempt = 0; attempt < 160; attempt++) {
+        const tx = rng.int(4, tileW - 5);
+        const ty = rng.int(3, tileH - 4);
+        if (grid?.[ty]?.[tx] !== TILE_TYPES.FLOOR) continue;
+        const ex = (tx + 0.5) * TILE;
+        const ey = (ty + 0.5) * TILE;
+        if (entrances.some(([px, py]) => Math.hypot(ex - px, ey - py) < 140)) continue;
+        if (this.player && Math.hypot(ex - this.player.x, ey - this.player.y) < 140) continue;
+        if (occupied.some(([px, py]) => Math.hypot(ex - px, ey - py) < 72)) continue;
+        position = [ex, ey];
+        break;
       }
-
+      if (!position) {
+        console.warn(`Sem tile livre seguro para inimigo na sala ${room.id}`);
+        continue;
+      }
+      const [ex, ey] = position;
+      occupied.push(position);
       const enemy = new Enemy(this, ex, ey, template);
       this._activeEnemies.push(enemy);
       this.enemiesGroup.add(enemy);
@@ -1355,7 +1378,10 @@ export class GameScene extends Phaser.Scene {
         upgradeLevel: Math.max(baseWeapon.upgradeLevel ?? 0, bonusUpgrade),
         itemLevel,
       };
-      this.inventorySystem.add(item, 'weapons');
+      if (!this.inventorySystem.add(item, 'weapons')) {
+        this.hud.showNotification('Item Único já obtido', '#ffaa66', 2200);
+        return;
+      }
       this.hud.showNotification(
         `⚔ ${item.name} +${item.upgradeLevel} (${item.rarity}) [Nv.${itemLevel}]`,
         '#ffdd88', 3000
@@ -1369,7 +1395,11 @@ export class GameScene extends Phaser.Scene {
                  : drop.itemId.includes('chest') ? 'chest'
                  : drop.itemId.includes('gloves') ? 'gloves' : 'legs';
       const piece = createArmorPiece(slot, drop.rarity ?? 'COMMON', null, itemLevel);
-      this.inventorySystem.add(piece, 'armors');
+      if (piece.rarity === 'UNIQUE') piece.id = drop.itemId;
+      if (!this.inventorySystem.add(piece, 'armors')) {
+        this.hud.showNotification('Item Único já obtido', '#ffaa66', 2200);
+        return;
+      }
       this.hud.showNotification(
         `🛡 ${piece.name} (${piece.rarity}) [Nv.${itemLevel}]`,
         '#44ffaa', 3000
@@ -1378,7 +1408,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   _openChest(x, y) {
-    const rng = this.seedSystem.areaRNG(this.currentAreaIndex + 100);
+    const chestId = `${this.currentAreaIndex}:${this._currentRoom.id}`;
+    if (this.openedChests.has(chestId)) return;
+    this.openedChests.add(chestId);
+    // O conteúdo do baú é estável para a mesma seed e sala.
+    const rng = this._currentRoom.rng.fork(0x43484553);
     const isArmor = rng.next() < 0.45;
     const rarityRoll = rng.next();
     const rarity = rarityRoll < 0.05 ? 'EPIC' : rarityRoll < 0.25 ? 'RARE' : 'COMMON';
@@ -1389,7 +1423,7 @@ export class GameScene extends Phaser.Scene {
     if (isArmor) {
       const slot = rng.pick(['helmet', 'chest', 'gloves', 'legs']);
       const piece = createArmorPiece(slot, rarity, rng, areaLevel);
-      this.inventorySystem.add(piece, 'armors');
+      if (!this.inventorySystem.add(piece, 'armors')) return;
       this.hud.showNotification(`📦 ${piece.name} (${rarity}) [Nv.${areaLevel}]`, '#88ddff', 3000);
     } else {
       const weaponIds = Object.keys(WEAPONS);
