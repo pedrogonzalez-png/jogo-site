@@ -1,5 +1,7 @@
 # Auditoria técnica do código — Abismo (21/10/2026)
 
+> **ATUALIZAÇÃO FINAL:** [Relatório de encerramento com CI atualizado e smoke real](RELATORIO_FINAL_2026-10-21.md). Os resultados que aparecem abaixo como **21 testes** descrevem uma etapa anterior: a validação mais recente do código no GitHub Actions aprovou **24 testes, build Vite e smoke Chromium** (menu, jogo, inventário, transição, morte/respawn e IndexedDB). Os 55 status de tarefas permanecem históricos até QA completo.
+
 > **Status:** auditoria estática ampla com correções e testes automatizados de escopo delimitado.
 > **Base examinada:** `main` após o merge do PR #2 (`bcf3c1dae9195c4994f5b749f3d856cd893bc9c0`).
 > **Correções propostas:** branch `fix/auditoria-integral-2026-10-21`, PR #3.
