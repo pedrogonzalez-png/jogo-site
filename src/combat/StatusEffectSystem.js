@@ -25,7 +25,10 @@ export class StatusEffectSystem {
     if (!this._buildup[element]) this._buildup[element] = 0;
     if (this._activeEffects[element]) return null; // já ativo
 
-    const effectiveBuildup = buildupAmount * (1 - resistance) * (1 + arcaneBonus);
+    if (!Number.isFinite(buildupAmount) || buildupAmount <= 0) return null;
+    const safeResistance = Number.isFinite(resistance) ? Math.max(0, Math.min(1, resistance)) : 0;
+    const safeArcane = Number.isFinite(arcaneBonus) ? Math.max(0, arcaneBonus) : 0;
+    const effectiveBuildup = buildupAmount * (1 - safeResistance) * (1 + safeArcane);
     this._buildup[element] += effectiveBuildup;
 
     if (this._buildup[element] >= config.limit) {
@@ -52,20 +55,21 @@ export class StatusEffectSystem {
   update(delta) {
     const ticks = [];
 
+    if (!Number.isFinite(delta) || delta <= 0) return ticks;
     for (const [element, effect] of Object.entries(this._activeEffects)) {
+      // Não aplicar dano por tempo posterior à expiração do status.
+      const elapsed = Math.min(delta, Math.max(0, effect.timer));
       effect.timer -= delta;
 
       if (effect.config.dot > 0) {
-        effect.dotTimer -= delta;
-        if (effect.dotTimer <= 0) {
-          effect.dotTimer = 1000;
+        effect.dotTimer -= elapsed;
+        // Frames atrasados podem conter mais de um tick.
+        while (effect.dotTimer <= 0) {
           ticks.push({ element, damage: effect.config.dot });
+          effect.dotTimer += 1000;
         }
       }
-
-      if (effect.timer <= 0) {
-        delete this._activeEffects[element];
-      }
+      if (effect.timer <= 0) delete this._activeEffects[element];
     }
 
     return ticks;
