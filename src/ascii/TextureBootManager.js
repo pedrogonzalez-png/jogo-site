@@ -175,7 +175,9 @@ export class TextureBootManager {
       charHeight: 4,
       fontSize: 5,
       bold: true,
-      bgColor: '#000000',
+      // Preto absoluto + glifos de 4px tornavam o chão quase invisível.
+      // Base cinza escuro preserva a atmosfera sem apagar os materiais.
+      bgColor: '#171920',
     };
 
     // Paredes e variantes
