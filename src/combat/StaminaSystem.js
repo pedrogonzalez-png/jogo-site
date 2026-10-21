@@ -18,7 +18,7 @@ export class StaminaSystem {
    * Tenta gastar stamina. Retorna true se bem-sucedido.
    */
   spend(amount) {
-    if (this.current < amount) return false;
+    if (!Number.isFinite(amount) || amount < 0 || this.current < amount) return false;
     this.current = Math.max(0, this.current - amount);
     this._regenTimer = 0;
     this._recovering = false;
@@ -29,12 +29,14 @@ export class StaminaSystem {
    * Força o gasto sem verificar disponibilidade (para bloqueio de guarda).
    */
   forceSpend(amount) {
+    if (!Number.isFinite(amount) || amount < 0) return;
     this.current = Math.max(0, this.current - amount);
     this._regenTimer = 0;
     this._recovering = false;
   }
 
   restore(amount) {
+    if (!Number.isFinite(amount) || amount <= 0) return;
     this.current = Math.min(this.max, this.current + amount);
   }
 
