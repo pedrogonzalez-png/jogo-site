@@ -116,6 +116,13 @@ export class SaveSystem {
     game.weaponSystem.deserialize(data.weapon ?? {});
     game.armorSystem.deserialize(data.armor ?? {});
     game.inventorySystem.deserialize(data.inventory ?? {});
+    // Recuperar histórico de Únicos de saves antigos que só guardavam
+    // o item equipado, mesmo quando ele não está na lista do inventário.
+    for (const item of [game.weaponSystem.equipped, ...Object.values(game.armorSystem.slots)]) {
+      if (item?.rarity === 'UNIQUE' && typeof item.id === 'string') {
+        game.inventorySystem.uniqueItemIds.add(item.id);
+      }
+    }
     game.healCharges    = data.healCharges    ?? 3;
     game.maxHealCharges = data.maxHealCharges ?? 3;
     game.healAmount     = data.healAmount     ?? 40;
