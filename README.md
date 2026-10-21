@@ -10,6 +10,8 @@ RPG de ação e exploração **top-down**, com combate souls-like, geração pro
 - IndexedDB para saves
 
 ## Rodar localmente## Auditoria e testes automatizados
+**[Auditoria final: 24 testes + Chromium](docs/06-auditoria/RELATORIO_FINAL_2026-10-21.md)** — correções rastreadas, teste de menu/jogo/inventário/transição/morte/IndexedDB, pendências de QA e link para screenshots.
+
 
 A auditoria técnica realizada em 21/10/2026 está em [docs/06-auditoria/AUDITORIA_CODIGO_2026-10-21.md](docs/06-auditoria/AUDITORIA_CODIGO_2026-10-21.md). A [matriz de evidências dos 55 requisitos](docs/06-auditoria/MATRIZ_55_TAREFAS.md) separa os status históricos dos testes atuais.
 
