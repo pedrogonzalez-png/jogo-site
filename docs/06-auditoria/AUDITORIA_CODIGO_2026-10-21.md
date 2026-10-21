@@ -1,5 +1,7 @@
 # Auditoria técnica do código — Abismo (21/10/2026)
 
+> **Complemento visual validado por capturas:** [relatório final atualizado](RELATORIO_FINAL_2026-10-21.md), [CI 39680748262](https://github.com/pedrogonzalez-png/jogo-site/actions/runs/39680748262). A câmera de zoom 1,5× cortava o inventário; a tela de morte ficava preta por fade sem restauração. Ambos foram corrigidos e conferidos em novas capturas. Os **24 testes e smoke de navegador passaram**. Ainda falta polimento de contraste/legibilidade, QA de 10 biomas e FPS.
+
 > **ATUALIZAÇÃO FINAL:** [Relatório de encerramento com CI atualizado e smoke real](RELATORIO_FINAL_2026-10-21.md). Os resultados que aparecem abaixo como **21 testes** descrevem uma etapa anterior: a validação mais recente do código no GitHub Actions aprovou **24 testes, build Vite e smoke Chromium** (menu, jogo, inventário, transição, morte/respawn e IndexedDB). Os 55 status de tarefas permanecem históricos até QA completo.
 
 > **Status:** auditoria estática ampla com correções e testes automatizados de escopo delimitado.
