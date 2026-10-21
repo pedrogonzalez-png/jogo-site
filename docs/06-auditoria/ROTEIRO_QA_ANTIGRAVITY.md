@@ -1,6 +1,6 @@
 # Roteiro de validação jogável — entrega ao Antigravity IDE
 
-> **Status em 21/10/2026:** **NÃO EXECUTADO EM NAVEGADOR** nesta auditoria remota. Este roteiro é um checklist de execução manual com passos, condições verificáveis e evidências obrigatórias. O CI cobre testes de lógica/módulos/arte disponível, não física e apresentação real do Phaser.
+> **Status em 21/10/2026:** o roteiro **COMPLETO de exploração e QA nos dez biomas NÃO FOI EXECUTADO**. Contudo, foi realizado um smoke real em Chromium/Phaser com menu, criação de partida, inventário, transição de sala, limpeza de projéteis, morte, respawn e persistência em IndexedDB: [execução aprovada](https://github.com/pedrogonzalez-png/jogo-site/actions/runs/39679081571). Esse subconjunto passou e possui cinco screenshots anexados à execução, mas **não comprova** FPS, estética, colisões exaustivas, bosses, hazards ou conteúdo final. Veja o [relatório final](RELATORIO_FINAL_2026-10-21.md).
 > [Auditoria de código](AUDITORIA_CODIGO_2026-10-21.md) · [Plano de QA geral](../04-gestao/PLANO_DE_VALIDACAO.md) · [Matriz dos 55](MATRIZ_55_TAREFAS.md)
 
 ## Preparação e dados de teste
