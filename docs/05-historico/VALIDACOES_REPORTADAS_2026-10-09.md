@@ -1,0 +1,23 @@
+# Auditoria histórica do Abismo — seção G
+
+> **Fonte:** [auditoria original de 2026-10-09](AUDITORIA_ORIGINAL_2026-10-09.md). Este é um **relato histórico**, não a situação atual comprovada. Afirmações de validação reproduzem o relatório antigo; não foram repetidas nesta edição.
+> [Índice da auditoria](../auditoria_abismo.md) · [Índice da documentação](../README.md)
+
+## G. Relatório de Validação Funcional (Outubro/2026)
+
+| Funcionalidade | Teste realizado | Resultado observado | Bugs encontrados | Correções aplicadas | Status final |
+|---|---|---|---|---|---|
+| **Ciclo do Jogador** | Explorar salas, combater, interagir com loot e descansar no santuário. | Movimentação fluida, stamina consumida, XP ganho, e salvamento funciona. | `player.activeHazardEffect` poderia vazar entre transições/salas. | Garantida a limpeza visual e física via `activeHazardEffect = null` em todo update frame de `Player.js`. | **Validado** |
+| **Geração Procedural (10 Biomas)** | Verificadas seeds determinísticas com `RoomGenerator` + `WorldGenerator`. | O Caminho crítico gera Salas Iniciais, Santuários, Elite e Chefes; Conexões não-lineares ramificam perfeitamente; biomas injetam palettes corretos. | Nenhum. As invariantes BFS do grafo procedem com 100% de precisão. | Nenhuma. | **Validado** |
+| **Arredores Cinzentos (Cinzas)** | Entrar e sair da área de cinzas `AshPatch`. | O deslocamento cai 35% por meio de um hook na velocidade. Emboscadas funcionam. | Nenhum. | Nenhuma. | **Validado** |
+| **Aqueduto Submerso (Água)** | Entrar na `CurrentZone`. | O jogador é empurrado na direção correta. | Status de penalidade física e mecânica não setava `WATER` na variável de lentidão (10%). | Modificado o getter e `GameScene` para espelhar a física e `Player.js` corretamente. | **Validado** |
+| **Catacumbas Ecoantes (Piso Frágil)** | Sobrepor `FragileFloor`. | O chão quebra com atraso, sacode tela e emite onda visual que atrai aggro de inimigos a 320px. | Nenhum. | Nenhuma. | **Validado** |
+| **Forja Maculada (Erupção)** | Permanecer próximo ao centro após aviso (`ThermalEruption`). | Causa dano em área e aplica Buildup de Fogo (Fire) ao jogador. Recupera status após ciclo. | Nenhum. | Nenhuma. | **Validado** |
+| **Jardim Pútrido (Veneno)** | Bater na `ToxicPlant`. | Nuvem tóxica de esporos se expande e aplica dano e status de Veneno contínuo. | Nenhum. | Nenhuma. | **Validado** |
+| **Cidade Subterrânea (Luz)** | Encontrar um beco sem saída bloqueado por sombra (`LanternBridge`). | Interagir com a lanterna [G] revela a ponte, eliminando barreira física invisível. | Nenhum. | Nenhuma. | **Validado** |
+| **Abismo Cristalino (Cristais)** | Usar feitiços em um `CrystalReflector`. | Cristais reagem a distâncias mas projéteis mágicos do jogador e chefe eram tweens gráficos inativos. | Projéteis não possuíam corpos físicos (sem vetores vX e vY para reflexão). | Implementado array `_activeProjectiles` no `GameScene` que gerencia a translação no Update (via `vX` e `vY`) e reflete as direções usando os ângulos do `CrystalReflector`. | **Validado** |
+| **Cárcere de Sangue (Sangue)** | Permanecer na poça `BloodPool`. | Jogador perde stamina ativa progressivamente enquanto inimigos se curam gradualmente (HP/Time). | Lentidão passiva de 15% não constava globalmente. | Acréscimo do setter `BLOOD` ao overlap para ativar `Player.speed`. | **Validado** |
+| **Biblioteca do Oculto (Ilusões)** | Interagir e pisar na `IllusionDoor`. | Probabilidade de 30% em seed ativada para teleportar para sala garantida sem quebrar o roteamento. | Nenhuma chance de Softlock. Boss é preservado. | Nenhuma. | **Validado** |
+| **Coração do Abismo (Gravidade)** | Entrar na `GravityZone`. | Puxão ativo pro centro de +25 px/s, alterando distanciamento do pulo e esquiva. | Nenhum. | Nenhuma. | **Validado** |
+| **Chefes e Recompensas** | Trigger na câmara de `Boss`. | Fase 1 acionada, comportamentos (Ex: *PrismaticBurst* e *Lifesteal*) ocorrem normalmente. Fase 2 trigger com HP%. | Projéteis mágicos (`PrismaticBurst`) não interagiam com cristais do ambiente. | Convertidos de Tween para `_activeProjectiles`, solucionando o impacto dinâmico do cenário. | **Validado** |
+| **Testes Técnicos / Compilação** | Comando Vite/Phaser 4 `npx vite build` (Sem symlinks para ExFAT). | Compilação passa com total integração dos recursos (Phaser Bundle minificado para ~1.5MB com chunks lógicos criados). | Exceção nativa no `node_modules` de arquivos symlinks no drive flash/Ventoy. | Contornado reconstruindo node_modules no disco e compilando usando Node direto: `node node_modules/vite/bin/vite.js build`. | **Validado** |
