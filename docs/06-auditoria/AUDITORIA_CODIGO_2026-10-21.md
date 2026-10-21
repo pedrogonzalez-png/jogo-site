@@ -73,7 +73,7 @@ Foram também inspecionados `package.json`, a estrutura dos HTML e o estado da d
 - `tests/world-generation.test.js`: reproducibilidade de seed, portas bidirecionais e caminho crítico para 10 biomas e múltiplas seeds.
 - `tests/source-integrity.test.js`: sintaxe JS (`node --check`), imports relativos, pools de inimigos/chefes, serialização e compatibilidade de saves antigos.
 
-**Execução verificada:** [GitHub Actions — execução inicial bem-sucedida](https://github.com/pedrogonzalez-png/jogo-site/actions/runs/39675562791): 18 testes aprovados, 0 falhas; Vite transformou 50 módulos e concluiu o build. A execução antecede parte das alterações posteriores deste PR; **é necessário considerar a execução mais recente do próprio PR para o aceite final**.
+**Execução verificada mais recente após as correções e os três novos testes:** [GitHub Actions — run 39677024455](https://github.com/pedrogonzalez-png/jogo-site/actions/runs/39677024455), commit `913e29efc`, Ubuntu/Node.js 22: **21 testes aprovados, 0 falhas, 0 ignorados; Vite transformou 50 módulos e concluiu o build**. Foram lidos os passos e os logs do job. A execução inicial anterior [run 39675562791](https://github.com/pedrogonzalez-png/jogo-site/actions/runs/39675562791) tinha 18 testes e também passou. Os novos commits **somente de documentação** posteriores não alteram o resultado do código; se o JS mudar, executar CI novamente.
 
 **Não validado:** frames ASCII em resolução real, movimento/colisões físicas no Phaser, suporte a navegador, combate completo com IA, boss de todos os biomas, travessia longa, áudio, save de usuário real e FPS/GPU.
 
@@ -100,3 +100,39 @@ Foram também inspecionados `package.json`, a estrutura dos HTML e o estado da d
 8. Ao concluir, registre console/seed/resultado no plano de QA; não marque “100% concluído” porque build passou.
 
 **Nenhuma correção deste relatório altera voluntariamente lore, arquitetura de rede, gameplay dos chefes ou artes ASCII fornecidas; esses temas precisam de tarefa própria e validação.**
+
+## 7. Complemento da auditoria: equipamento e integridade (21/10/2026)
+
+As correções a seguir foram incorporadas depois do primeiro relatório de 16 itens.
+
+| ID | Natureza | Problema identificado | Alteração | Evidência |
+|---|---|---|---|---|
+| AUD-017 | P1 — equipamento | Ao voltar um item Único do slot equipado para o inventário, a proteção contra duplicatas podia barrar a **transferência legítima**; armas equipadas também permaneciam no inventário como cópia | `InventorySystem.add(..., { transferOwned: true })`, transferência de armas e armaduras em `InventoryUI.js`, reconstrução de histórico de Únicos equipados no load | Teste automatizado de troca de único; clique e HUD ainda pendentes |
+| AUD-018 | P2 — raridade | `UpgradeSystem.upgrade` podia devolver raridade abaixo da raridade originalmente obtida; getters de `WeaponSystem` e `ArmorSystem` também podiam rebaixar a classificação | Raridade resultante conserva a maior entre a original e o nível de aprimoramento, preservando Único | Teste automatizado de upgrade e classificação |
+| AUD-019 | P1 — penalidade | Interface de equipamento acima do nível recomendado permitia desativar somente uma peça ao reativar uma das duas anteriormente penalizadas | Alternância em `InventoryUI.js` substitui uma peça desativada por outra para conservar exatamente duas | Revisão estática e build; **ainda exige clique no navegador** |
+| AUD-020 | P2 — regressão | Não havia execução padronizada de testes antes de alterações futuras no código | `npm test` (Node built-in test runner), 3 arquivos de testes e `.github/workflows/quality.yml` | [21 testes e build aprovados](https://github.com/pedrogonzalez-png/jogo-site/actions/runs/39677024455) |
+
+### O que a validação automatizada cobre e o que não cobre
+
+**Coberto (21 testes):** propriedades numéricas de dano, custos/raridades, 4 limiares de desafio, parry, status, unicidade de identidade de item, transferência de item Único, XP/orbe lógica, geração de mundo por seed, grafo de dez biomas, caminhos relativos/imports, sintaxe de fontes e serialização de SaveSystem. **Os casos exatos encontram-se em `tests/`.**
+
+**Não coberto por browser:** a UI de troca de equipamentos, animações, física do Arcade, visibilidade dos inimigos/chefes, status nas telas, abertura/fechamento de baús pela interface, IndexedDB real, FPS e desenho ASCII. CI aprovado não autoriza declarar essas funcionalidades validadas no gameplay.
+
+### Novo fluxo de trabalho para o Antigravity
+
+Ao abrir este PR no Antigravity, execute:
+```bash
+npm ci
+npm test
+npm run build
+npm run dev
+```
+
+Na execução jogável, priorize: abrir save antigo, atacar um inimigo com golpe leve/pesado/skill, matar com golpe fatal, ganhar recompensa do desafio, equipar/trocar Único, abrir baú, trocar de sala e recarregar save. Capturar seed, screenshot e logs. Somente após esses casos atribuir **VALIDADO EM GAMEPLAY** aos itens de domínio.
+
+### Interpretação correta dos números
+
+- **45 fontes JS revisadas**: escopo da inspeção estática, não quantidade de sistemas completos.
+- **21 testes aprovados**: número de casos automatizados, **não** 21 sistemas do GDD finalizados.
+- **55 IDs históricos**: preservados, com evidências parciais em [matriz dos 55](MATRIZ_55_TAREFAS.md).
+- **56 subtarefas propostas para o Antigravity**: continuam independentes do percentual de conclusão dos 55 IDs e não devem ser somadas ao painel de conclusão.
