@@ -1160,7 +1160,7 @@ export class GameScene extends Phaser.Scene {
         fontFamily: MONO, fontSize: '12px', color: '#666666',
       }).setOrigin(0.5).setScrollFactor(0).setDepth(501).setInteractive();
       this._deathScreenObjects.push(menuBtn);
-      menuBtn.on('pointerover', () => menuBtn.setColor('#aaaaaa');
+      menuBtn.on('pointerover', () => menuBtn.setColor('#aaaaaa'));
       menuBtn.on('pointerout',  () => menuBtn.setColor('#666666'));
 
       menuBtn.on('pointerup', () => {
