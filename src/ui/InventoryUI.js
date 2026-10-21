@@ -309,7 +309,11 @@ export class InventoryUI {
         }).setScrollFactor(0).setDepth(302).setInteractive();
 
         equipBtn.on('pointerup', () => {
+          // Transfere a arma, em vez de conservar uma cópia extra no inventário.
+          const previous = systems.weapon.equipped;
           systems.weapon.equip(w);
+          inv.remove(w.instanceId, 'weapons');
+          if (previous) inv.add(previous, 'weapons', { transferOwned: true });
           player.checkWeaponLevelPenalty();
           this.scene.events.emit('weapon:equipped', { weapon: w });
           this._render(player, systems);
@@ -350,7 +354,7 @@ export class InventoryUI {
           const oldPiece = systems.armor.slots[piece.slot];
           systems.armor.equip(piece);
           inv.remove(piece.instanceId, 'armors');
-          if (oldPiece) inv.add(oldPiece, 'armors');
+          if (oldPiece) inv.add(oldPiece, 'armors', { transferOwned: true });
           player.refreshStatsFromAttributes();
           this._render(player, systems);
         });
