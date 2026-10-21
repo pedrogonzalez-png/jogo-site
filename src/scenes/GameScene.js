@@ -81,6 +81,11 @@ export class GameScene extends Phaser.Scene {
     if (this._loadSave && this._saveSystem) {
       this._saveSystem.load(this._saveSlot).then(data => {
         if (data) this._saveSystem.applySaveData(data, this);
+        else this._initDefault(); // Slot inexistente não pode começar sem equipamento.
+        this._initWorld();
+      }).catch(error => {
+        console.error('Falha ao carregar save:', error);
+        this._initDefault();
         this._initWorld();
       });
     } else {
@@ -111,6 +116,8 @@ export class GameScene extends Phaser.Scene {
     // ── Mundo procedural ─────────────────────────────────────
     this.seedSystem = new SeedSystem(this.seed);
     this.worldGen   = new WorldGenerator(this.seedSystem);
+    // Drops usam uma stream derivada da seed, nunca Date.now().
+    this.lootSystem = new LootSystem(this.seedSystem.areaRNG(this.currentAreaIndex).fork(0x4c4f4f54));
     this.areaData   = this.worldGen.generateArea(this.currentAreaIndex);
 
     this._activeDrops       = [];
@@ -358,8 +365,12 @@ export class GameScene extends Phaser.Scene {
 
     for (let i = 0; i < count; i++) {
       const templateId = rng.pick(pool);
-      const template   = { ...ENEMY_TEMPLATES[templateId] };
-      if (!template) continue;
+      const baseTemplate = ENEMY_TEMPLATES[templateId];
+      if (!baseTemplate) {
+        console.warn(`Template de inimigo ausente: ${templateId}`);
+        continue;
+      }
+      const template = { ...baseTemplate };
 
       // Scalonamento por profundidade do Abismo
       if (this.abyssDepth > 0) {
@@ -410,8 +421,13 @@ export class GameScene extends Phaser.Scene {
     const bx = Math.floor(tileW / 2) * TILE;
     const by = Math.floor(tileH / 2) * TILE;
 
-    const bossId = this.areaData.biome.bossPool[0] || 'ashen_lord';
-    const template = { ...BOSS_TEMPLATES[bossId] };
+    const bossId = this.areaData.biome.bossPool?.[0] ?? 'senhor_das_cinzas';
+    const baseTemplate = BOSS_TEMPLATES[bossId];
+    if (!baseTemplate) {
+      console.error(`Template de chefe ausente: ${bossId}`);
+      return;
+    }
+    const template = { ...baseTemplate };
 
     this._activeBoss = new Boss(this, bx, by, template);
     this.enemiesGroup.add(this._activeBoss);
@@ -816,15 +832,22 @@ export class GameScene extends Phaser.Scene {
       const dist = Phaser.Math.Distance.Between(x, y, enemy.x, enemy.y);
       if (dist > radius + 16) continue;
 
-      // Calcula record de Abismo no início do hit
-      const combatRecord = this.abyssChallenge.recordCombatStart(
-        this.levelSystem.level, enemy.level
-      );
+      // Fixar o desafio no PRIMEIRO confronto, antes do hit: a morte
+      // ocorre de forma síncrona dentro de processHit/takeDamage.
+      if (!enemy._combatRecord && !enemy.getData?.('combatRecord')) {
+        const combatRecord = this.abyssChallenge.recordCombatStart(
+          this.levelSystem.level, enemy.level
+        );
+        enemy._combatRecord = combatRecord;
+        enemy.setData?.('combatRecord', combatRecord);
+      }
 
       // Resolve hit via CombatSystem
       const hitResult = CombatSystem.processHit(
         this.player, enemy, type,
         {
+          damage:        (attackData.damage ?? this.player.effectiveAttack) +
+                         (this.armorSystem.totalStats.attack ?? 0),
           element:       attackData.element,
           elementBuildup: attackData.elementBuildup,
           equilDamage:    attackData.equilDamage,
@@ -854,10 +877,6 @@ export class GameScene extends Phaser.Scene {
           hitResult.statusActivated.element, '#ff8833', 1200
         );
       }
-
-      // Armazena record para recompensa de Abismo ao matar
-      enemy.setData?.('combatRecord', combatRecord);
-      if (!enemy.setData) enemy._combatRecord = combatRecord;
 
       // Feedback de impacto físico (knockback)
       if (enemy.body && !enemy.isDead) {
@@ -1255,6 +1274,7 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.once('camerafadeoutcomplete', () => {
       this._clearRoom();
       this.areaData = this.worldGen.generateArea(this.currentAreaIndex);
+      this.lootSystem = new LootSystem(this.seedSystem.areaRNG(this.currentAreaIndex).fork(0x4c4f4f54));
       this._buildCurrentRoom();
 
       const startRoom = this.areaData.rooms[0];
@@ -1378,7 +1398,9 @@ export class GameScene extends Phaser.Scene {
       this.inventorySystem.add(item, 'weapons');
       this.hud.showNotification(`📦 ${item.name} (${rarity}) [Nv.${areaLevel}]`, '#88ddff', 3000);
     }
-    this._floatXP(x, y - 20, 25 + areaLevel * 4);
+    const chestXP = 25 + areaLevel * 4;
+    this.xpSystem.addXP(chestXP);
+    this._floatXP(x, y - 20, chestXP);
   }
 
   _floatXP(x, y, amount) {
@@ -1466,6 +1488,7 @@ export class GameScene extends Phaser.Scene {
           this._deathOrb.destroy();
           this._deathOrb = null;
           this.hud.showNotification(`+${recovered} XP Recuperada!`, '#ffdd00', 2000);
+          this._autosave();
         };
       }
     }
