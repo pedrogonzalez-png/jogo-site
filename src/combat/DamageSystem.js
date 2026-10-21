@@ -13,10 +13,15 @@ export class DamageSystem {
   static calculate(attack, defense, isCrit = false, critMultiplier = 1.5) {
     const ratio = BALANCE.DAMAGE.DEFENSE_RATIO;
 
+    // Ataque zero e entradas inválidas não podem produzir NaN nem divisão por zero.
+    if (!Number.isFinite(attack) || attack <= 0 ||
+        !Number.isFinite(defense) || !Number.isFinite(critMultiplier)) return 0;
+
     let effectiveAttack = attack;
     if (isCrit) effectiveAttack *= critMultiplier;
+    if (!Number.isFinite(effectiveAttack) || effectiveAttack <= 0) return 0;
 
-    if (defense <= 0) return Math.max(0, effectiveAttack);
+    if (defense <= 0) return effectiveAttack;
 
     const reduction = defense / (ratio * effectiveAttack);
     const damage = effectiveAttack * (1 - reduction);
@@ -35,8 +40,10 @@ export class DamageSystem {
    * resistance: valor entre -1 (vulnerável) e 1 (imune)
    */
   static applyElementalResistance(damage, resistance) {
-    const mult = 1 - resistance;
-    return Math.max(0, damage * mult);
+    if (!Number.isFinite(damage) || damage <= 0) return 0;
+    const safeResistance = Number.isFinite(resistance)
+      ? Math.max(-1, Math.min(1, resistance)) : 0;
+    return Math.max(0, damage * (1 - safeResistance));
   }
 
   /**
