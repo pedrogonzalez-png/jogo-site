@@ -1,5 +1,9 @@
 # Plano de QA, testes e evidências para Antigravity
 
+> **Execução automatizada em 21/10/2026:** [GitHub Actions / run 39677024455](https://github.com/pedrogonzalez-png/jogo-site/actions/runs/39677024455): `npm ci`, **21 testes aprovados, 0 falhas**, `npm run build` aprovado em Node.js 22. Os testes integram `tests/core-systems.test.js`, `tests/world-generation.test.js` e `tests/source-integrity.test.js`.
+>
+> **Ainda não validado:** navegador/Phaser real, câmera, animação ASCII, física, HUD, interação de inventário, IndexedDB real e FPS. Veja [Auditoria](../06-auditoria/AUDITORIA_CODIGO_2026-10-21.md).
+
 > **Situação desta reorganização (2026-10-21):** nenhum build ou teste de jogo foi executado; o trabalho consiste em documentação e revisão **estática parcial** de código. O relatório histórico de 09/10 está em [Auditoria e validações antigas](../auditoria_abismo.md).
 
 ## 1. Vocabulário de evidência
