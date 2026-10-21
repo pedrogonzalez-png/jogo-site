@@ -44,11 +44,27 @@ export const BALANCE = {
     HP_PER_VIGOR: 12,
     STAGGER_PER_VIGOR: 5,
     ATTACK_PER_STR: 3,
+    ATTACK_PER_DEX: 2.5,
     STAMINA_PER_END: 8,
     STAMINA_REGEN_PER_END: 1.5,
     DEFENSE_PER_END: 2,
     ELEMENTAL_PER_ARCANE: 4,
     STATUS_BUILDUP_PER_ARCANE: 0.05,
+  },
+
+  // ── Soft Caps de Atributos ─────────────────────────────────
+  // Centraliza as curvas de rendimento decrescente para todos os atributos:
+  // 1–50: crescimento forte (100%)
+  // 51–100: crescimento médio (60%)
+  // 101–500: crescimento baixo (25%)
+  // 500+: crescimento muito baixo (10%, infinito sem teto)
+  SOFT_CAPS: {
+    TIERS: [
+      { min: 0,   max: 50,       multiplier: 1.00 },
+      { min: 50,  max: 100,      multiplier: 0.60 },
+      { min: 100, max: 500,      multiplier: 0.25 },
+      { min: 500, max: Infinity, multiplier: 0.10 },
+    ],
   },
 
   // ── Controles ─────────────────────────────────────────────

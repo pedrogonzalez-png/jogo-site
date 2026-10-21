@@ -93,6 +93,9 @@ export class SaveSystem {
       defeatedBosses: [...(game.defeatedBosses ?? [])],
       abyssDepth:   game.abyssDepth ?? 0,
       abyssUniques: [...(game.abyssUniqueObtained ?? [])],
+      relics: {
+        equipped: [...(game.equippedRelics ?? game.player?.relics ?? [])],
+      },
       npcs:         game.npcState ?? {},
       version:      '1.0.0',
     };
@@ -120,6 +123,12 @@ export class SaveSystem {
     game.defeatedBosses   = new Set(data.defeatedBosses ?? []);
     game.abyssDepth        = data.abyssDepth ?? 0;
     game.abyssUniqueObtained = new Set(data.abyssUniques ?? []);
+    game.equippedRelics    = Array.isArray(data.relics?.equipped)
+      ? [...data.relics.equipped]
+      : (Array.isArray(data.equippedRelics) ? [...data.equippedRelics] : []);
+    if (game.player) {
+      game.player.relics = [...game.equippedRelics];
+    }
     game.npcState         = data.npcs ?? {};
 
     return true;

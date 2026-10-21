@@ -26,6 +26,11 @@ const STATE = {
   DEAD:        'DEAD',
 };
 
+// Limite visual em pixels do mundo Phaser. A textura continua em alta resolução;
+// apenas o Sprite é escalado para caber nesta caixa, sem deformar a proporção.
+const PLAYER_VISUAL_BOUNDS = Object.freeze({ width: 80, height: 80 });
+const PLAYER_BODY_BASE = Object.freeze({ width: 24, height: 24, offsetX: 13, offsetY: 38 });
+
 export class Player extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y, systems) {
     super(scene, x, y, 'player');
@@ -35,7 +40,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
     this.setDepth(10);
     this.body.setSize(24, 24);
-    this.body.setOffset(4, 8);
+    this.body.setOffset(13, 38);
 
     // ── Sistemas injetados ────────────────────────────────────
     this.statSystem    = systems.stat;
@@ -84,7 +89,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.baseCritMultiplier = 1.5;
 
     this._createAnimations(scene);
-    this.setTint(0xddccaa);
+    this.clearTint();
+    if (scene.anims?.exists('player_idle')) {
+      this.play('player_idle');
+    }
+
+    // Encaixa o visual em uma caixa compacta sem alterar os pixels da textura.
+    this._fitVisualToBounds();
   }
 
   // ── Stats derivados ──────────────────────────────────────────
@@ -112,7 +123,17 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   get speed() {
-    return BALANCE.PLAYER.BASE_SPEED * this.statusSystem.getSlowFactor();
+    let base = BALANCE.PLAYER.BASE_SPEED * this.statusSystem.getSlowFactor();
+    if (this.activeHazardEffect === 'ASH') {
+      base *= 0.65; // Arredores Cinzentos: reduz em 35%
+    } else if (this.activeHazardEffect === 'BLOOD') {
+      base *= 0.85; // Cárcere de Sangue: reduz em 15%
+    } else if (this.activeHazardEffect === 'WATER') {
+      base *= 0.90; // Aqueduto Submerso: reduz em 10%
+    } else if (this.activeHazardEffect === 'GRAVITY') {
+      base *= 0.75; // Coração do Abismo: reduz em 25%
+    }
+    return base;
   }
 
   // ── Público: entrada ─────────────────────────────────────────
@@ -347,8 +368,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.facingAngle = Math.atan2(dy, dx);
     }
 
-    const vx = Math.cos(this.facingAngle) * BALANCE.PLAYER.DODGE_SPEED;
-    const vy = Math.sin(this.facingAngle) * BALANCE.PLAYER.DODGE_SPEED;
+    let dodgeSpeed = BALANCE.PLAYER.DODGE_SPEED;
+    if (this.activeHazardEffect === 'GRAVITY') {
+      dodgeSpeed *= 0.6; // Reduz a distância da esquiva
+    }
+
+    const vx = Math.cos(this.facingAngle) * dodgeSpeed;
+    const vy = Math.sin(this.facingAngle) * dodgeSpeed;
     this.body.setVelocity(vx, vy);
 
     this.weaponSystem.resetCombo();
@@ -461,30 +487,28 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   _showAttackFlash(x, y, type) {
     const isHeavy = type === 'HEAVY';
-    const color = isHeavy ? 0xffaa00 : (type === 'DODGE_ATTACK' ? 0x44ddff : 0xffffff);
+    const textureKey = isHeavy ? 'vfx_slash_heavy' : 'vfx_slash_light';
 
-    // Efeito de corte em arco (Slash arc)
-    const slash = this.scene.add.graphics().setDepth(20);
-    slash.lineStyle(isHeavy ? 3.5 : 2, color, 0.85);
+    // Rastro de corte em arco de ASCII denso
+    const slash = this.scene.add.sprite(this.x, this.y, textureKey).setDepth(20);
+    slash.setRotation(this.facingAngle);
+    slash.setScale(isHeavy ? 1.2 : 0.9);
+    slash.setAlpha(0.95);
 
-    const range = (this.weaponSystem.family?.range ?? 48) * 0.75;
-    const arcSpan = isHeavy ? 1.0 : 0.75;
-    slash.beginPath();
-    slash.arc(this.x, this.y, range, this.facingAngle - arcSpan, this.facingAngle + arcSpan, false);
-    slash.strokePath();
-
-    // Ponto de impacto visual na ponta do ataque
-    const flash = this.scene.add.circle(x, y, isHeavy ? 18 : 12, color, 0.55).setDepth(20);
+    // Ponto de impacto em ASCII denso
+    const spark = this.scene.add.sprite(x, y, 'vfx_impact_spark').setDepth(21);
+    spark.setScale(isHeavy ? 1.4 : 1.0);
+    spark.setAlpha(1.0);
 
     this.scene.tweens.add({
-      targets: [slash, flash],
+      targets: [slash, spark],
       alpha: 0,
-      scaleX: 1.25,
-      scaleY: 1.25,
-      duration: isHeavy ? 220 : 160,
+      scaleX: '+=0.25',
+      scaleY: '+=0.25',
+      duration: isHeavy ? 240 : 170,
       onComplete: () => {
         slash.destroy();
-        flash.destroy();
+        spark.destroy();
       },
     });
   }
@@ -500,7 +524,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
     // Flash de dano
     this.setTint(0xff4444);
-    this.scene.time.delayedCall(120, () => this.setTint(0xddccaa));
+    this.scene.time.delayedCall(120, () => this.clearTint());
 
     if (this.hp <= 0) {
       this._die();
@@ -582,6 +606,39 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
 
     this._updateVisual();
+
+    // Limpa os efeitos do ambiente para o próximo frame (overlap de física vai setar novamente se continuar dentro)
+    this.activeHazardEffect = null;
+  }
+
+  _fitVisualToBounds() {
+    // Usa o tamanho real do frame atual, não o tamanho já escalado do Sprite.
+    const frame = this.frame;
+    const frameWidth = frame?.width || frame?.realWidth || this.width;
+    const frameHeight = frame?.height || frame?.realHeight || this.height;
+    if (!this.body || frameWidth <= 0 || frameHeight <= 0) return;
+
+    // Escala uniforme: mantém a proporção e limita o desenho a 80×80 pixels.
+    const scale = Math.min(
+      1,
+      PLAYER_VISUAL_BOUNDS.width / frameWidth,
+      PLAYER_VISUAL_BOUNDS.height / frameHeight
+    );
+    if (!Number.isFinite(scale) || scale <= 0) return;
+
+    this.setScale(scale);
+
+    // Compensa a escala para manter o hitbox no tamanho do mundo (24×24)
+    // e conservar o offset original em pixels visuais.
+    this.body.setSize(
+      PLAYER_BODY_BASE.width / scale,
+      PLAYER_BODY_BASE.height / scale,
+      false
+    );
+    this.body.setOffset(
+      PLAYER_BODY_BASE.offsetX / scale,
+      PLAYER_BODY_BASE.offsetY / scale
+    );
   }
 
   _updateVisual() {
@@ -589,10 +646,31 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (Math.cos(this.facingAngle) < 0) this.setFlipX(true);
     else this.setFlipX(false);
 
-    // Cor de estado
-    if (this.state === STATE.BLOCK) this.setTint(0x8888ff);
-    else if (this.state === STATE.PARRY && this.parrySystem.isActive) this.setTint(0xffff44);
-    else if (!this.isInvincible && this.state !== STATE.STAGGER) this.setTint(0xddccaa);
+    // Gestão de animações e texturas de alta densidade
+    if (this.state === STATE.BLOCK) {
+      if (this.anims?.isPlaying) this.stop();
+      this.setTexture('player_block');
+      this.setTint(0x88bbff);
+    } else if (this.state === STATE.ATTACK || this.state === STATE.HEAVY) {
+      if (this.anims?.isPlaying) this.stop();
+      this.setTexture('player_attack_0');
+      this.clearTint();
+    } else if (this.state === STATE.PARRY && this.parrySystem.isActive) {
+      this.setTint(0xffff44);
+    } else if (this.body.velocity.lengthSq() > 20) {
+      if (this.anims && this.anims.currentAnim?.key !== 'player_walk') {
+        this.play('player_walk');
+      }
+      if (!this.isInvincible && this.state !== STATE.STAGGER) this.clearTint();
+    } else {
+      if (this.anims && this.anims.currentAnim?.key !== 'player_idle') {
+        this.play('player_idle');
+      }
+      if (!this.isInvincible && this.state !== STATE.STAGGER) this.clearTint();
+    }
+
+    // Recalcula após trocar textura/animação; a matriz ASCII de origem não muda.
+    this._fitVisualToBounds();
   }
 
   _createAnimations(scene) {

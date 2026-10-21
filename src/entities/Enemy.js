@@ -59,17 +59,38 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     // XP yield
     this.xpYield = template.xp ?? 30;
 
+    // Seleção de textura ASCII de alta densidade por arquétipo
+    let textureKey = 'enemy_skeleton';
+    const id = template.id || '';
+    if (id.includes('sabujo') || id.includes('vinha')) {
+      textureKey = 'enemy_beast';
+    } else if (id.includes('sentinela') || id.includes('bruto') || id.includes('golias') || id.includes('guardiao') || id.includes('carcereiro') || id.includes('cavaleiro')) {
+      textureKey = 'enemy_guardian';
+    } else if (id.includes('mago') || id.includes('sabio') || id.includes('arcanista') || id.includes('espectro') || id.includes('tomo') || id.includes('eco')) {
+      textureKey = 'enemy_mage';
+    } else if (id.includes('afogado') || id.includes('espreitador')) {
+      textureKey = 'enemy_drowned';
+    } else if (id.includes('aberracao') || id.includes('anomalia') || id.includes('golem') || id.includes('cristal') || id.includes('ruina') || id.includes('brotar') || id.includes('construto') || id.includes('diabrete') || id.includes('fragmento')) {
+      textureKey = 'enemy_aberration';
+    } else if (id.includes('esqueleto') || id.includes('carrasco')) {
+      textureKey = 'enemy_skeleton';
+    }
+
+    if (scene.textures.exists(textureKey)) {
+      this.setTexture(textureKey);
+    }
+
     // Efeitos visuais
     this._damageFlashTimer = 0;
     this._baseColor = template.color ?? 0xaa4444;
-    this.setTint(this._baseColor);
+    this.clearTint();
 
     // Barra de HP flutuante sobre a cabeça
     this._hpBarBg = scene.add.rectangle(x, y - 18, 28, 4, 0x111111, 0.85).setDepth(15).setVisible(false);
     this._hpBarFill = scene.add.rectangle(x - 14, y - 18, 28, 4, 0xcc2222, 1).setDepth(16).setOrigin(0, 0.5).setVisible(false);
 
     if (this.isElite) {
-      this.setScale(1.3);
+      this.setScale(1.2);
       // Indicador visual de elite
       this._eliteGlow = scene.add.circle(x, y, 18, 0xffaa00, 0.25).setDepth(8);
     }
@@ -225,8 +246,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     const attackRange = this.template.attackRange ?? BALANCE.ENEMY.ATTACK_RANGE;
 
     if (dist <= attackRange * 0.8 && this._attackCooldown <= 0) {
-      // Guardian faz ataque pesado às vezes
-      const isHeavy = Math.random() < 0.35;
+      // Guardian faz ataque pesado baseado em contador determinístico
+      this._guardianAttackCounter = (this._guardianAttackCounter ?? 0) + 1;
+      const isHeavy = this._guardianAttackCounter % 3 === 0;
       this._doAttack(player, isHeavy);
     } else if (dist <= aggroRange) {
       this._chasePlayer(player, this.template.speed ?? BALANCE.ENEMY.CHASE_SPEED * 0.85);
@@ -249,8 +271,10 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this._patrolTimer -= delta;
     if (this._patrolTimer <= 0) {
       this._patrolTimer = Phaser.Math.Between(1500, 4000);
-      const angle = Math.random() * Math.PI * 2;
-      const dist  = Phaser.Math.Between(30, 80);
+      // Deterministic patrol using spawn position and counter
+      this._patrolCounter = (this._patrolCounter ?? 0) + 1;
+      const angle = ((this._patrolCounter * 2654435761) >>> 0) / 0x100000000 * Math.PI * 2;
+      const dist  = 30 + ((this._patrolCounter * 1597334677) >>> 0) % 50;
       this._patrolTarget = {
         x: this._spawnX + Math.cos(angle) * dist,
         y: this._spawnY + Math.sin(angle) * dist,
@@ -300,7 +324,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         isHeavy,
         canBeParried: !isHeavy,
         element: this.template.element ?? null,
-        elementBuildup: this.template.elementBuildup ?? 0,
+        elementBuildup: this.template.elementBuildup ?? (this.template.element ? 10 : 0),
       });
     });
   }

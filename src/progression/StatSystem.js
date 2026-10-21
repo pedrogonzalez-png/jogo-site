@@ -17,55 +17,91 @@ export class StatSystem {
     this.freePoints = 5;
   }
 
-  /** HP máximo derivado */
+  /**
+   * Calcula o valor efetivo de um atributo aplicando as curvas de soft cap
+   * definidas centralizadamente em BALANCE.SOFT_CAPS.
+   * Não possui limite máximo absoluto (crescimento infinito).
+   */
+  static calculateEffectiveStat(value) {
+    if (value <= 0) return 0;
+    const tiers = BALANCE.SOFT_CAPS?.TIERS ?? [
+      { min: 0,   max: 50,       multiplier: 1.0 },
+      { min: 50,  max: 100,      multiplier: 0.6 },
+      { min: 100, max: 500,      multiplier: 0.25 },
+      { min: 500, max: Infinity, multiplier: 0.1 },
+    ];
+
+    let effective = 0;
+    for (const tier of tiers) {
+      if (value <= tier.min) continue;
+      const pointsInTier = Math.min(value, tier.max) - tier.min;
+      effective += pointsInTier * tier.multiplier;
+      if (value <= tier.max) break;
+    }
+    return effective;
+  }
+
+  /** Valores efetivos com soft cap aplicado */
+  get effectiveVigor()     { return StatSystem.calculateEffectiveStat(this.vigor); }
+  get effectiveStrength()  { return StatSystem.calculateEffectiveStat(this.strength); }
+  get effectiveDexterity() { return StatSystem.calculateEffectiveStat(this.dexterity); }
+  get effectiveEndurance() { return StatSystem.calculateEffectiveStat(this.endurance); }
+  get effectiveArcane()    { return StatSystem.calculateEffectiveStat(this.arcane); }
+
+  /** HP máximo derivado com soft cap */
   get maxHP() {
-    return BALANCE.PLAYER.BASE_HP + this.vigor * BALANCE.PLAYER.HP_PER_VIGOR;
+    return Math.round(BALANCE.PLAYER.BASE_HP + this.effectiveVigor * BALANCE.PLAYER.HP_PER_VIGOR);
   }
 
-  /** Equilíbrio base derivado */
+  /** Equilíbrio base derivado com soft cap */
   get maxBalance() {
-    return BALANCE.STAGGER.BASE_BALANCE + this.vigor * BALANCE.PLAYER.STAGGER_PER_VIGOR;
+    return Math.round(BALANCE.STAGGER.BASE_BALANCE + this.effectiveVigor * BALANCE.PLAYER.STAGGER_PER_VIGOR);
   }
 
-  /** Stamina máxima derivada */
+  /** Stamina máxima derivada com soft cap */
   get maxStamina() {
-    return BALANCE.PLAYER.BASE_STAMINA + this.endurance * BALANCE.PLAYER.STAMINA_PER_END;
+    return Math.round(BALANCE.PLAYER.BASE_STAMINA + this.effectiveEndurance * BALANCE.PLAYER.STAMINA_PER_END);
   }
 
-  /** Taxa de regen de stamina adicional */
+  /** Taxa de regen de stamina adicional com soft cap */
   get staminaRegenBonus() {
-    return this.endurance * BALANCE.PLAYER.STAMINA_REGEN_PER_END;
+    return this.effectiveEndurance * BALANCE.PLAYER.STAMINA_REGEN_PER_END;
   }
 
-  /** Defesa física base */
+  /** Defesa física base com soft cap */
   get baseDefense() {
-    return BALANCE.PLAYER.BASE_DEFENSE + this.endurance * BALANCE.PLAYER.DEFENSE_PER_END;
+    return Math.round(BALANCE.PLAYER.BASE_DEFENSE + this.effectiveEndurance * BALANCE.PLAYER.DEFENSE_PER_END);
   }
 
-  /** Bônus de ataque de Força */
+  /** Bônus de ataque de Força com soft cap */
   get strengthBonus() {
-    return this.strength * BALANCE.PLAYER.ATTACK_PER_STR;
+    return this.effectiveStrength * BALANCE.PLAYER.ATTACK_PER_STR;
   }
 
-  /** Bônus elemental de Arcano */
+  /** Bônus de ataque de Destreza com soft cap */
+  get dexterityBonus() {
+    return this.effectiveDexterity * (BALANCE.PLAYER.ATTACK_PER_DEX ?? 2.5);
+  }
+
+  /** Bônus elemental de Arcano com soft cap */
   get arcaneBonus() {
-    return this.arcane * BALANCE.PLAYER.ELEMENTAL_PER_ARCANE;
+    return this.effectiveArcane * BALANCE.PLAYER.ELEMENTAL_PER_ARCANE;
   }
 
-  /** Multiplicador de buildup de status de Arcano */
+  /** Multiplicador de buildup de status de Arcano com soft cap */
   get statusBuildupBonus() {
-    return this.arcane * BALANCE.PLAYER.STATUS_BUILDUP_PER_ARCANE;
+    return this.effectiveArcane * BALANCE.PLAYER.STATUS_BUILDUP_PER_ARCANE;
   }
 
   /**
-   * Calcula o ataque efetivo com uma arma, considerando seus escalamentos.
+   * Calcula o ataque efetivo com uma arma, considerando seus escalamentos com soft caps.
    * weaponFamily: { scaling: { STR, DEX }, baseDamage }
    * upgradeLevel: nível de upgrade da arma
    */
   calculateWeaponAttack(weaponFamily, upgradeLevel = 0, armorAttackBonus = 0) {
     const base = weaponFamily.baseDamage;
     const strScale = (weaponFamily.scaling?.STR ?? 0) * this.strengthBonus;
-    const dexScale = (weaponFamily.scaling?.DEX ?? 0) * this.dexterity * 1.5;
+    const dexScale = (weaponFamily.scaling?.DEX ?? 0) * this.dexterityBonus;
     const upgBonus = base * upgradeLevel * BALANCE.EQUIPMENT.STAT_SCALE_PER_UPGRADE;
     return base + strScale + dexScale + upgBonus + armorAttackBonus;
   }

@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ABISMO — Galeria de Arte ASCII de Alta Densidade</title>
+  <style>
+    :root {
+      --bg: #090a0f;
+      --card-bg: #12141c;
+      --border: #252836;
+      --accent: #b5162c;
+      --gold: #f2c56d;
+      --text: #d4d8e0;
+      --text-muted: #7b8096;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      padding: 24px;
+      line-height: 1.6;
+    }
+    header {
+      max-width: 1400px;
+      margin: 0 auto 32px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 20px;
+    }
+    h1 {
+      font-family: 'Cinzel', Georgia, serif;
+      font-size: 28px;
+      color: var(--gold);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+    .nav-tabs {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+    .tab-btn {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 16px;
+      cursor: pointer;
+      font-size: 13px;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+    .tab-btn:hover, .tab-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .section-view {
+      display: none;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .section-view.active {
+      display: block;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 24px;
+      margin-top: 20px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .card-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--gold);
+      margin-bottom: 6px;
+      align-self: flex-start;
+      width: 100%;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      padding-bottom: 6px;
+    }
+    .card-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+      align-self: flex-start;
+    }
+    .ascii-viewport {
+      background: #000000;
+      border: 1px solid #1a1c26;
+      border-radius: 4px;
+      padding: 16px;
+      overflow: auto;
+      max-width: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    canvas {
+      image-rendering: pixelated;
+    }
+    .density-bar {
+      display: flex;
+      gap: 6px;
+      margin-top: 12px;
+      font-family: monospace;
+      font-size: 12px;
+    }
+    .density-chip {
+      padding: 2px 6px;
+      background: #000;
+      border: 1px solid #333;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>ABISMO — Direção Artística ASCII de Alta Densidade</h1>
+    <p class="subtitle">Biblioteca visual volumétrica construída com densidade de caracteres, sombras, relevos e iluminação inspirada no Cavaleiro de Referência.</p>
+    
+    <div class="nav-tabs">
+      <button class="tab-btn active" onclick="showTab('knight')">Cavaleiro (Protagonista)</button>
+      <button class="tab-btn" onclick="showTab('enemies')">Inimigos & Bestiário</button>
+      <button class="tab-btn" onclick="showTab('bosses')">Os 10 Chefes</button>
+      <button class="tab-btn" onclick="showTab('scenery')">Cenários & 10 Biomas</button>
+      <button class="tab-btn" onclick="showTab('liquids')">Água & Efeitos (VFX)</button>
+      <button class="tab-btn" onclick="showTab('master')">Bíblia Visual (Referência 147x92)</button>
+      <a href="/" style="text-decoration:none; margin-left:auto;"><button class="tab-btn" style="background:#2a4a35; border-color:#3d6b4d;">▶ Jogar Abismo</button></a>
+    </div>
+  </header>
+
+  <!-- TAB 1: CAVALEIRO -->
+  <div id="tab-knight" class="section-view active">
+    <h2>O Cavaleiro (Protagonista)</h2>
+    <p class="subtitle">Construído com pluma carmesim, elmo com fenda de visor escuro, placas musculosas de aço, dobras de manto e lâmina polida.</p>
+    <div class="grid" id="knight-grid"></div>
+  </div>
+
+  <!-- TAB 2: INIMIGOS -->
+  <div id="tab-enemies" class="section-view">
+    <h2>Bestiário & Inimigos</h2>
+    <p class="subtitle">Anatomia completa: crânios, caixas torácicas e articulações para esqueletos, membros e presas para bestas, mantos para magos e armaduras monumentais para guardiões.</p>
+    <div class="grid" id="enemies-grid"></div>
+  </div>
+
+  <!-- TAB 3: CHEFES -->
+  <div id="tab-bosses" class="section-view">
+    <h2>Os 10 Chefes do Abismo</h2>
+    <p class="subtitle">Ilustrações de grande escala com identidade única e anatomia para cada bioma, além de formas da Fase 2.</p>
+    <div class="grid" id="bosses-grid"></div>
+  </div>
+
+  <!-- TAB 4: CENÁRIOS -->
+  <div id="tab-scenery" class="section-view">
+    <h2>Cenários & Arquitetura dos 10 Biomas</h2>
+    <p class="subtitle">Paredes de blocos de cantaria com juntas e fissuras estruturais, lajotas com rejunte, portas monumentais, altares sagrados e baús reforçados.</p>
+    <div class="grid" id="scenery-grid"></div>
+  </div>
+
+  <!-- TAB 5: LÍQUIDOS & VFX -->
+  <div id="tab-liquids" class="section-view">
+    <h2>Água Volumétrica & Efeitos de Combate</h2>
+    <p class="subtitle">Água tridimensional com ondulações, cristas de espuma, correntes e profundidade abissal. Arcos de corte e centelhas de impacto em caracteres densos.</p>
+    <div class="grid" id="liquids-grid"></div>
+  </div>
+
+  <!-- TAB 6: MESTRE DE REFERÊNCIA -->
+  <div id="tab-master" class="section-view">
+    <h2>O Cavaleiro de Referência (Obra-Prima 147x92)</h2>
+    <p class="subtitle">A ilustração do arquivo ascii-art.html integralmente preservada em sua resolução total com 7.647 células ativas.</p>
+    <div class="card" style="width:100%; margin-top:20px;">
+      <div class="card-title">Cavaleiro Mestre — Densidade Máxima</div>
+      <div class="card-desc">200x100 células no grid, 147x92 área da figura. @ (sombra profunda), % (aço e manto escuro), # (meio-tom), * (luz), + = - : . (especulares e reflexos metálicos).</div>
+      <div class="ascii-viewport" id="master-viewport" style="max-height: 80vh;"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { AsciiRenderer } from '/src/ascii/AsciiRenderer.js';
+    import { KNIGHT_FRAMES, getReferenceKnightCells } from '/src/ascii/KnightArt.js';
+    import { ENEMY_ART } from '/src/ascii/EnemyArt.js';
+    import { BOSS_ART } from '/src/ascii/BossArt.js';
+    import { ENVIRONMENT_ART } from '/src/ascii/EnvironmentArt.js';
+    import { LIQUIDS_AND_VFX } from '/src/ascii/LiquidsAndVFXArt.js';
+    import { BIOME_ASCII_PALETTES, MATERIALS } from '/src/ascii/AsciiPalette.js';
+
+    window.showTab = function(tabId) {
+      document.querySelectorAll('.section-view').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+      document.getElementById('tab-' + tabId).classList.add('active');
+      event.target.classList.add('active');
+    };
+
+    function addCard(containerId, title, desc, canvas) {
+      const container = document.getElementById(containerId);
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `<div class="card-title">${title}</div><div class="card-desc">${desc}</div><div class="ascii-viewport"></div>`;
+      card.querySelector('.ascii-viewport').appendChild(canvas);
+      container.appendChild(card);
+    }
+
+    // 1. Cavaleiro
+    const knightOpts = { charWidth: 4, charHeight: 6, fontSize: 5, bold: true };
+    addCard('knight-grid', 'Postura de Guarda (Idle 0)', 'Postura ereta com pluma carmesim, espada no quadril e couraça polida.', AsciiRenderer.renderToCanvas({ lines: KNIGHT_FRAMES.idle_0.lines, palette: KNIGHT_FRAMES.idle_0.colorResolver, ...knightOpts }));
+    addCard('knight-grid', 'Respiração (Idle 1)', 'Micro-movimento com flutuação da pluma e ondulação do manto.', AsciiRenderer.renderToCanvas({ lines: KNIGHT_FRAMES.idle_1.lines, palette: KNIGHT_FRAMES.idle_1.colorResolver, ...knightOpts }));
+    addCard('knight-grid', 'Marcha (Walk 0)', 'Passo à frente com avanço de grevas e balanceio da lâmina.', AsciiRenderer.renderToCanvas({ lines: KNIGHT_FRAMES.walk_0.lines, palette: KNIGHT_FRAMES.walk_0.colorResolver, ...knightOpts }));
+    addCard('knight-grid', 'Ataque de Espada', 'Golpe horizontal com arco de rastro luminoso de caracteres.', AsciiRenderer.renderToCanvas({ lines: KNIGHT_FRAMES.attack_0.lines, palette: KNIGHT_FRAMES.attack_0.colorResolver, ...knightOpts }));
+    addCard('knight-grid', 'Bloqueio com Escudo', 'Escudo pesado erguido com brasão entalhado e bordas de ouro.', AsciiRenderer.renderToCanvas({ lines: KNIGHT_FRAMES.block.lines, palette: KNIGHT_FRAMES.block.colorResolver, ...knightOpts }));
+
+    // 2. Inimigos
+    const enemyOpts = { charWidth: 4, charHeight: 6, fontSize: 5, bold: true };
+    addCard('enemies-grid', 'Esqueleto Desperto', 'Crânio, órbitas escuras, caixa torácica com costelas e cimitarra.', AsciiRenderer.renderToCanvas({ lines: ENEMY_ART.skeleton.lines, palette: ENEMY_ART.skeleton.colorResolver, ...enemyOpts }));
+    addCard('enemies-grid', 'Sabujo de Fuligem', 'Anatomia quadrúpede agressiva com presas, dorso arqueado e garras.', AsciiRenderer.renderToCanvas({ lines: ENEMY_ART.beast.lines, palette: (ch, x, y) => ENEMY_ART.beast.colorResolver(ch, x, y, 'MAGMA'), ...enemyOpts }));
+    addCard('enemies-grid', 'Sentinela Cinzenta (Elite)', 'Armadura monumental pesada com escudo torre e alabarda.', AsciiRenderer.renderToCanvas({ lines: ENEMY_ART.guardian.lines, palette: ENEMY_ART.guardian.colorResolver, ...enemyOpts }));
+    addCard('enemies-grid', 'Mago de Sangue', 'Capuz sombrio, olhar misterioso, mantos esvoaçantes e cajado com orbe.', AsciiRenderer.renderToCanvas({ lines: ENEMY_ART.mage.lines, palette: (ch, x, y) => ENEMY_ART.mage.colorResolver(ch, x, y, 'BLOOD'), ...enemyOpts }));
+    addCard('enemies-grid', 'Afogado Abissal', 'Corpo afundado com guelras, algas encharcadas e olhos fosforescentes.', AsciiRenderer.renderToCanvas({ lines: ENEMY_ART.drowned.lines, palette: ENEMY_ART.drowned.colorResolver, ...enemyOpts }));
+    addCard('enemies-grid', 'Manifestação da Ruína', 'Entidade anômala com múltiplos olhos, tentáculos e fenda gravitacional.', AsciiRenderer.renderToCanvas({ lines: ENEMY_ART.aberration.lines, palette: ENEMY_ART.aberration.colorResolver, ...enemyOpts }));
+
+    // 3. Chefes
+    const bossOpts = { charWidth: 4, charHeight: 6, fontSize: 5, bold: true };
+    for (const [key, boss] of Object.entries(BOSS_ART)) {
+      const name = key.replace(/_/g, ' ').toUpperCase();
+      addCard('bosses-grid', name, 'Ilustração com proporções colossais e identidade visual do bioma.', AsciiRenderer.renderToCanvas({ lines: boss.lines, palette: (ch, x, y) => boss.colorResolver(ch, x, y, false), ...bossOpts }));
+    }
+
+    // 4. Cenários
+    const scnOpts = { charWidth: 8, charHeight: 8, fontSize: 8, bold: true, bgColor: '#000000' };
+    addCard('scenery-grid', 'Bloco de Parede Sólido', 'Blocos de pedra aparelhada com juntas horizontais de argamassa.', AsciiRenderer.renderToCanvas({ lines: ENVIRONMENT_ART.walls.solid_0.lines, palette: MATERIALS.STONE_ASH, ...scnOpts }));
+    addCard('scenery-grid', 'Bloco de Parede Rachado', 'Fratura estrutural diagonal com quebra da junta mineral.', AsciiRenderer.renderToCanvas({ lines: ENVIRONMENT_ART.walls.cracked_0.lines, palette: MATERIALS.STONE_ASH, ...scnOpts }));
+    addCard('scenery-grid', 'Lajota de Piso Rejuntada', 'Piso de pedra com textura granular e divisórias sutis.', AsciiRenderer.renderToCanvas({ lines: ENVIRONMENT_ART.floors.flagstone_0.lines, palette: BIOME_ASCII_PALETTES.ARREDORES_CINZENTOS.floor, ...scnOpts }));
+    addCard('scenery-grid', 'Porta Monumental Arqueada', 'Arco de cantaria, pranchas de madeira e reforços de ferro.', AsciiRenderer.renderToCanvas({ lines: ENVIRONMENT_ART.doors.closed.lines, palette: ENVIRONMENT_ART.doors.closed.colorResolver, charWidth: 6, charHeight: 6, fontSize: 6 }));
+    addCard('scenery-grid', 'Santuário Sagrado', 'Altar esculpido com degraus, coluna canelada e braseiro com chama.', AsciiRenderer.renderToCanvas({ lines: ENVIRONMENT_ART.sanctuary.lines, palette: ENVIRONMENT_ART.sanctuary.colorResolver, charWidth: 6, charHeight: 6, fontSize: 6 }));
+    addCard('scenery-grid', 'Baú com Ferragens (Fechado)', 'Madeira encerada, tiras de ferro rebitadas e fechadura dourada.', AsciiRenderer.renderToCanvas({ lines: ENVIRONMENT_ART.chest.closed.lines, palette: ENVIRONMENT_ART.chest.closed.colorResolver, charWidth: 6, charHeight: 6, fontSize: 6 }));
+    addCard('scenery-grid', 'Baú com Ferragens (Aberto)', 'Tampa recuada com moedas, joias e relíquias transbordando.', AsciiRenderer.renderToCanvas({ lines: ENVIRONMENT_ART.chest.open.lines, palette: ENVIRONMENT_ART.chest.open.colorResolver, charWidth: 6, charHeight: 6, fontSize: 6 }));
+
+    // 5. Líquidos & VFX
+    const waterCanvas = AsciiRenderer.renderToCanvas({ lines: LIQUIDS_AND_VFX.water.frame_0, palette: LIQUIDS_AND_VFX.water.colorResolver, charWidth: 6, charHeight: 6, fontSize: 6, bgColor: '#000000' });
+    addCard('liquids-grid', 'Água Tridimensional (Aqueduto)', 'Superfície volumétrica com espuma (: .), cristas (= -), correntes (~) e profundidade (@ %).', waterCanvas);
+
+    // Animador de água no card
+    let wFrame = 0;
+    const wFrames = [LIQUIDS_AND_VFX.water.frame_0, LIQUIDS_AND_VFX.water.frame_1, LIQUIDS_AND_VFX.water.frame_2, LIQUIDS_AND_VFX.water.frame_3];
+    setInterval(() => {
+      wFrame = (wFrame + 1) % 4;
+      const nextCanvas = AsciiRenderer.renderToCanvas({ lines: wFrames[wFrame], palette: LIQUIDS_AND_VFX.water.colorResolver, charWidth: 6, charHeight: 6, fontSize: 6, bgColor: '#000000' });
+      waterCanvas.getContext('2d').drawImage(nextCanvas, 0, 0);
+    }, 280);
+
+    addCard('liquids-grid', 'Sangue Coagulado (Cárcere)', 'Líquido viscoso carmesim com coágulos e reflexos de plasma.', AsciiRenderer.renderToCanvas({ lines: LIQUIDS_AND_VFX.blood.frame_0, palette: LIQUIDS_AND_VFX.blood.colorResolver, charWidth: 6, charHeight: 6, fontSize: 6, bgColor: '#000000' }));
+    addCard('liquids-grid', 'Magma Incandescente (Forja)', 'Basalto negro, fissuras térmicas e calor incandescente.', AsciiRenderer.renderToCanvas({ lines: LIQUIDS_AND_VFX.magma.frame_0, palette: LIQUIDS_AND_VFX.magma.colorResolver, charWidth: 6, charHeight: 6, fontSize: 6, bgColor: '#000000' }));
+    addCard('liquids-grid', 'Arco de Corte de Aço (Slash VFX)', 'Crescente denso de caracteres cortando o ar.', AsciiRenderer.renderToCanvas({ lines: LIQUIDS_AND_VFX.slashArc.light.lines, palette: LIQUIDS_AND_VFX.slashArc.light.colorResolver, charWidth: 6, charHeight: 6, fontSize: 6 }));
+    addCard('liquids-grid', 'Impacto & Centelhas (Spark VFX)', 'Explosão cinética de impacto em metal.', AsciiRenderer.renderToCanvas({ lines: LIQUIDS_AND_VFX.impactSpark.lines, palette: LIQUIDS_AND_VFX.impactSpark.colorResolver, charWidth: 6, charHeight: 6, fontSize: 6 }));
+
+    // 6. Mestre de Referência
+    const masterCells = AsciiRenderer.unpackRLE(getReferenceKnightCells());
+    const masterCanvas = AsciiRenderer.renderToCanvas({
+      coloredCells: masterCells,
+      charWidth: 4,
+      charHeight: 6,
+      fontSize: 5,
+    });
+    document.getElementById('master-viewport').appendChild(masterCanvas);
+  </script>
+</body>
+</html>

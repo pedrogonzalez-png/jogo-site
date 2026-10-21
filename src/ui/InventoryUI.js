@@ -4,6 +4,7 @@
 // ============================================================
 import { UpgradeSystem } from '../equipment/UpgradeSystem.js';
 import { XPSystem } from '../progression/XPSystem.js';
+import { ITEMS } from '../data/items.js';
 
 const RARITY_COLORS = {
   COMMON: '#aaaaaa', RARE: '#4488ff', VERY_RARE: '#aa44ff',
@@ -226,10 +227,10 @@ export class InventoryUI {
 
     const attrs = [
       { key: 'vigor',     name: 'Vigor',       value: stat.vigor,     desc: `HP: ${stat.maxHP}` },
-      { key: 'strength',  name: 'Força',       value: stat.strength,  desc: `Atk: +${stat.strengthBonus}` },
-      { key: 'dexterity', name: 'Destreza',    value: stat.dexterity, desc: 'Armas ágeis' },
+      { key: 'strength',  name: 'Força',       value: stat.strength,  desc: `Atk STR: +${Math.round(stat.strengthBonus)}` },
+      { key: 'dexterity', name: 'Destreza',    value: stat.dexterity, desc: `Atk DEX: +${Math.round(stat.dexterityBonus)}` },
       { key: 'endurance', name: 'Resistência', value: stat.endurance, desc: `Sta: ${stat.maxStamina}` },
-      { key: 'arcane',    name: 'Arcano',      value: stat.arcane,    desc: `Elem: +${stat.arcaneBonus}` },
+      { key: 'arcane',    name: 'Arcano',      value: stat.arcane,    desc: `Elem: +${Math.round(stat.arcaneBonus)}` },
     ];
 
     attrs.forEach((attr, i) => {
@@ -367,18 +368,47 @@ export class InventoryUI {
     this._elements.push(rLabel);
     curY += 20;
 
-    const relics = player.relics ?? [];
-    if (relics.length === 0) {
-      const empty = s.add.text(x, curY, 'Nenhuma relíquia equipada.', {
+    const equippedRelics = player.relics ?? [];
+    const obtainedRelics = inv.getAll('relics');
+
+    // Mapeia todas as relíquias conhecidas (obtidas ou equipadas)
+    const allRelicKeys = Array.from(new Set([
+      ...equippedRelics,
+      ...obtainedRelics.map(r => r.id ?? r.itemId),
+    ]));
+
+    if (allRelicKeys.length === 0) {
+      const empty = s.add.text(x, curY, 'Nenhuma relíquia encontrada.', {
         fontFamily: 'Inter', fontSize: '10px', color: '#555555',
       }).setScrollFactor(0).setDepth(301);
       this._elements.push(empty);
     } else {
-      relics.forEach(r => {
-        const rTxt = s.add.text(x, curY, `✦ ${r}`, {
-          fontFamily: 'Inter', fontSize: '10px', color: '#aa44ff',
+      allRelicKeys.forEach(key => {
+        const itemInfo = ITEMS[key];
+        const rName = itemInfo ? itemInfo.name : key;
+        const isEquipped = equippedRelics.includes(key);
+
+        const rTxt = s.add.text(x, curY, `✦ ${rName}`, {
+          fontFamily: 'Inter', fontSize: '10px', color: isEquipped ? '#aa44ff' : '#888888',
         }).setScrollFactor(0).setDepth(301);
-        this._elements.push(rTxt);
+
+        const toggleBtn = s.add.text(x + 160, curY, isEquipped ? '[Desequipar]' : '[Equipar]', {
+          fontFamily: 'Inter', fontSize: '10px', color: isEquipped ? '#ff8888' : '#44ffaa',
+        }).setScrollFactor(0).setDepth(302).setInteractive();
+
+        toggleBtn.on('pointerup', () => {
+          if (isEquipped) {
+            player.relics = player.relics.filter(r => r !== key);
+          } else {
+            if (!player.relics.includes(key)) player.relics.push(key);
+          }
+          if (systems.scene) {
+            systems.scene.equippedRelics = [...player.relics];
+          }
+          this._render(player, systems);
+        });
+
+        this._elements.push(rTxt, toggleBtn);
         curY += 16;
       });
     }

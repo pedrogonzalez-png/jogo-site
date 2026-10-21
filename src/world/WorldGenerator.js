@@ -1,90 +1,242 @@
 // ============================================================
 // world/WorldGenerator.js
-// Gera a macroestrutura de uma área: sequência de salas conectadas.
+// Gera a macroestrutura de uma área: grafo 2D de salas conectadas.
 // ============================================================
-import { RoomGenerator, TILE_TYPES } from './RoomGenerator.js';
+import { RoomGenerator } from './RoomGenerator.js';
 import { BIOMES, BIOME_IDS } from '../data/biomes.js';
 
-// Estrutura mínima garantida de uma área:
-// ENTRANCE → N salas NORMAL → SANCTUARY → N salas NORMAL → ELITE → BOSS
+const OPPOSITE_DIR = {
+  N: 'S',
+  S: 'N',
+  E: 'W',
+  W: 'E',
+};
 
-const ROOM_TYPES_POOL = [
-  'NORMAL', 'NORMAL', 'NORMAL', 'NORMAL',
-  'ELITE', 'CHEST',
+const DIR_OFFSETS = {
+  N: { dx: 0,  dy: -1 },
+  S: { dx: 0,  dy: 1  },
+  E: { dx: 1,  dy: 0  },
+  W: { dx: -1, dy: 0  },
+};
+
+const BRANCH_ROOM_POOL = [
+  'CHEST', 'NORMAL', 'NORMAL', 'ELITE',
 ];
 
 export class WorldGenerator {
   constructor(seedSystem, biomeId = null) {
     this.seedSystem = seedSystem;
+    this.forcedBiomeId = biomeId;
     this.biomeId = biomeId;
     this.biome = biomeId && BIOMES[biomeId] ? BIOMES[biomeId] : null;
   }
 
   /**
-   * Gera uma área completa.
+   * Gera uma área completa garantindo navegabilidade e integridade bidirecional.
    * areaIndex: índice numérico da área (para seed determinística)
    * Returns: { rooms: [], connections: Map, biome, biomeId }
    */
   generateArea(areaIndex = 0) {
     const rng = this.seedSystem.areaRNG(areaIndex);
 
-    // Se biomeId não foi fixado, seleciona determinístico baseado na seed e área
-    if (!this.biomeId) {
-      const biomeKey = BIOME_IDS[areaIndex % BIOME_IDS.length] ?? 'VALE_DAS_CINZAS';
-      this.biome = BIOMES[biomeKey];
-      this.biomeId = biomeKey;
-    } else if (!this.biome) {
-      this.biome = BIOMES[this.biomeId] ?? BIOMES['VALE_DAS_CINZAS'];
+    // Seleciona bioma determinístico baseado em forcedBiomeId ou no índice da área
+    let areaBiomeId = this.forcedBiomeId;
+    if (!areaBiomeId) {
+      areaBiomeId = BIOME_IDS[areaIndex % BIOME_IDS.length] ?? 'VALE_DAS_CINZAS';
     }
-    const rooms = [];
+    this.biomeId = areaBiomeId;
+    this.biome = BIOMES[areaBiomeId] ?? BIOMES['VALE_DAS_CINZAS'];
 
-    // ── Estrutura obrigatória ─────────────────────────────────
-    const mandatory = ['ENTRANCE', 'NORMAL', 'NORMAL', 'SANCTUARY', 'NORMAL', 'NORMAL', 'ELITE', 'BOSS'];
-
-    // ── Salas extras procedurais ──────────────────────────────
-    const extraCount = rng.int(2, 5);
-    const extras = [];
-    for (let i = 0; i < extraCount; i++) {
-      extras.push(rng.pick(ROOM_TYPES_POOL));
-    }
-
-    // Insere as extras antes do boss
-    const sequence = [
-      ...mandatory.slice(0, 4),
-      ...extras,
-      ...mandatory.slice(4),
+    // ── 1. Espinha Principal Obrigatória (Critical Path) ─────
+    // ENTRANCE(0) -> NORMAL(1) -> NORMAL(2) -> SANCTUARY(3) -> NORMAL(4) -> NORMAL(5) -> ELITE(6) -> BOSS(7)
+    const spineTypes = [
+      'ENTRANCE', 'NORMAL', 'NORMAL', 'SANCTUARY',
+      'NORMAL',   'NORMAL', 'ELITE',  'BOSS'
     ];
 
-    // ── Gera cada sala ────────────────────────────────────────
-    const connections = new Map();
+    const roomsMeta = [];
+    const gridMap = new Map(); // "gx,gy" -> roomIndex
 
-    for (let i = 0; i < sequence.length; i++) {
+    for (let i = 0; i < spineTypes.length; i++) {
+      const meta = {
+        id: i,
+        type: spineTypes[i],
+        gx: i,
+        gy: 0,
+        isSpine: true,
+      };
+      roomsMeta.push(meta);
+      gridMap.set(`${meta.gx},${meta.gy}`, i);
+    }
+
+    // ── 2. Conexões iniciais da espinha principal ───────────
+    const connections = new Map();
+    for (let i = 0; i < spineTypes.length; i++) {
+      connections.set(i, { N: null, S: null, E: null, W: null });
+    }
+
+    for (let i = 0; i < spineTypes.length - 1; i++) {
+      connections.get(i).E = i + 1;
+      connections.get(i + 1).W = i;
+    }
+
+    // ── 3. Ramificações procedurais Norte e Sul (Branch Rooms) ─
+    const extraCount = rng.int(2, 4);
+    const candidateParents = [1, 2, 4, 5]; // Apenas salas normais geram ramificações
+
+    for (let e = 0; e < extraCount; e++) {
+      const parentId = candidateParents[(e + rng.int(0, candidateParents.length - 1)) % candidateParents.length];
+      const parent = roomsMeta[parentId];
+
+      // Escolhe N ou S
+      const verticalDirs = rng.next() < 0.5 ? ['N', 'S'] : ['S', 'N'];
+      let chosenDir = null;
+
+      for (const dir of verticalDirs) {
+        const offset = DIR_OFFSETS[dir];
+        const tgx = parent.gx + offset.dx;
+        const tgy = parent.gy + offset.dy;
+        const key = `${tgx},${tgy}`;
+
+        if (!gridMap.has(key) && connections.get(parentId)[dir] === null) {
+          chosenDir = dir;
+          break;
+        }
+      }
+
+      if (!chosenDir) continue;
+
+      const newId = roomsMeta.length;
+      const offset = DIR_OFFSETS[chosenDir];
+      const newMeta = {
+        id: newId,
+        type: rng.pick(BRANCH_ROOM_POOL),
+        gx: parent.gx + offset.dx,
+        gy: parent.gy + offset.dy,
+        isSpine: false,
+      };
+
+      roomsMeta.push(newMeta);
+      gridMap.set(`${newMeta.gx},${newMeta.gy}`, newId);
+      connections.set(newId, { N: null, S: null, E: null, W: null });
+
+      // Conexão bidirecional garantida com o pai
+      connections.get(parentId)[chosenDir] = newId;
+      connections.get(newId)[OPPOSITE_DIR[chosenDir]] = parentId;
+
+      // Opcional: se houver sala lateral adjacente, cria conexão horizontal para loop
+      const westKey = `${newMeta.gx - 1},${newMeta.gy}`;
+      if (gridMap.has(westKey) && rng.next() < 0.5) {
+        const westId = gridMap.get(westKey);
+        if (connections.get(newId).W === null && connections.get(westId).E === null) {
+          connections.get(newId).W = westId;
+          connections.get(westId).E = newId;
+        }
+      }
+    }
+
+    // ── 4. Geração dos tiles e validação de cada sala ─────────
+    const rooms = [];
+
+    for (let i = 0; i < roomsMeta.length; i++) {
+      const meta = roomsMeta[i];
+      const roomConn = connections.get(i);
       const roomRNG = this.seedSystem.roomRNG(areaIndex, i);
       const gen = new RoomGenerator(roomRNG, this.biome);
 
+      // Constrói conjunto de saídas físicas ESTRITAMENTE a partir das conexões confirmadas
       const exits = new Set();
-      if (i > 0)                    exits.add('W'); // entrada pelo oeste
-      if (i < sequence.length - 1) exits.add('E'); // saída pelo leste
+      if (roomConn.N !== null) exits.add('N');
+      if (roomConn.S !== null) exits.add('S');
+      if (roomConn.E !== null) exits.add('E');
+      if (roomConn.W !== null) exits.add('W');
 
-      // Salas laterais aleatórias
-      if (sequence[i] === 'NORMAL' && roomRNG.next() < 0.3) {
-        exits.add(roomRNG.next() < 0.5 ? 'N' : 'S');
-      }
+      const roomData = gen.generate(meta.type, exits);
 
-      const roomData = gen.generate(sequence[i], exits);
       rooms.push({
         id: i,
-        type: sequence[i],
+        type: meta.type,
         data: roomData,
         rng: roomRNG,
         cleared: false,
-        worldX: i * (BIOMES[this.biomeId] ? 1280 : 1280),
-        worldY: 0,
+        gx: meta.gx,
+        gy: meta.gy,
+        worldX: meta.gx * 1280,
+        worldY: meta.gy * 720,
       });
-
-      connections.set(i, { E: i + 1 < sequence.length ? i + 1 : null, W: i > 0 ? i - 1 : null });
     }
+
+    // ── 5. Validação global do Grafo ─────────────────────────
+    this._validateWorldGraph(rooms, connections);
 
     return { rooms, connections, biome: this.biome, biomeId: this.biomeId };
   }
+
+  /**
+   * Valida a integridade do grafo do mundo:
+   * - Nenhuma conexão aponta para sala inexistente;
+   * - Toda conexão é 100% bidirecional;
+   * - Toda porta física existe correspondente à lógica;
+   * - Todas as salas são alcançáveis a partir da Entrada (Room 0);
+   * - A cadeia Entrada -> Santuário -> Elite -> Boss é 100% navegável.
+   */
+  _validateWorldGraph(rooms, connections) {
+    const totalRooms = rooms.length;
+
+    // 1. Simetria e existência
+    for (let i = 0; i < totalRooms; i++) {
+      const conn = connections.get(i);
+      const room = rooms[i];
+
+      for (const [dir, targetId] of Object.entries(conn)) {
+        if (targetId !== null) {
+          if (targetId < 0 || targetId >= totalRooms) {
+            throw new Error(`Conexão inválida na sala ${i}: porta ${dir} aponta para id inexistente ${targetId}`);
+          }
+
+          const oppositeDir = OPPOSITE_DIR[dir];
+          const targetConn = connections.get(targetId);
+          if (targetConn[oppositeDir] !== i) {
+            throw new Error(`Assimetria de portas: sala ${i} (${dir} -> ${targetId}), mas sala ${targetId} (${oppositeDir} -> ${targetConn[oppositeDir]})`);
+          }
+
+          if (!room.data.exits.has(dir)) {
+            throw new Error(`Porta física ausente na sala ${i} para a direção ${dir}`);
+          }
+        }
+      }
+    }
+
+    // 2. Alcançabilidade via BFS a partir de ENTRANCE (0)
+    const visited = new Set();
+    const queue = [0];
+    visited.add(0);
+
+    while (queue.length > 0) {
+      const curr = queue.shift();
+      const conn = connections.get(curr);
+      for (const targetId of Object.values(conn)) {
+        if (targetId !== null && !visited.has(targetId)) {
+          visited.add(targetId);
+          queue.push(targetId);
+        }
+      }
+    }
+
+    if (visited.size !== totalRooms) {
+      throw new Error(`Grafo desconexo: apenas ${visited.size} de ${totalRooms} salas são alcançáveis a partir da Entrada.`);
+    }
+
+    // 3. Validação do Caminho Crítico
+    const requiredSequence = ['ENTRANCE', 'SANCTUARY', 'ELITE', 'BOSS'];
+    for (const reqType of requiredSequence) {
+      const found = rooms.some(r => r.type === reqType && visited.has(r.id));
+      if (!found) {
+        throw new Error(`Sala crítica do tipo ${reqType} não é alcançável a partir da Entrada.`);
+      }
+    }
+
+    return true;
+  }
 }
+

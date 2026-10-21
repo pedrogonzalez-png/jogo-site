@@ -23,6 +23,7 @@ import { DamageSystem }   from '../combat/DamageSystem.js';
 import { SeedSystem }     from '../world/SeedSystem.js';
 import { WorldGenerator } from '../world/WorldGenerator.js';
 import { TILE_TYPES }     from '../world/RoomGenerator.js';
+import { EnvironmentalHazardManager } from '../world/EnvironmentalHazards.js';
 
 import { HUD }            from '../ui/HUD.js';
 import { BossBar }        from '../ui/BossBar.js';
@@ -49,7 +50,7 @@ export class GameScene extends Phaser.Scene {
 
   // ──────────────────────────────────────────────────────────
   create() {
-    this.cameras.main.setBackgroundColor(0x0d0a08);
+    this.cameras.main.setBackgroundColor(0x000000);
 
     // ── Sistemas de progressão ────────────────────────────────
     this.statSystem      = new StatSystem();
@@ -74,6 +75,7 @@ export class GameScene extends Phaser.Scene {
     this.currentAreaIndex  = 0;
     this.currentRoomIndex  = 0;
     this.npcState          = {};
+    this.equippedRelics    = [];
 
     // ── Carrega save ou inicia novo ───────────────────────────
     if (this._loadSave && this._saveSystem) {
@@ -92,6 +94,11 @@ export class GameScene extends Phaser.Scene {
     this.weaponSystem.equip(WEAPONS.iron_sword);
     Object.values(STARTING_ARMOR).forEach(piece => this.armorSystem.equip(piece));
     this.statSystem.freePoints = 5;
+
+    // Relíquias iniciais para Novo Jogo
+    this.equippedRelics = ['eye_of_abyss', 'iron_will'];
+    if (ITEMS.eye_of_abyss) this.inventorySystem.add(ITEMS.eye_of_abyss, 'relics');
+    if (ITEMS.iron_will) this.inventorySystem.add(ITEMS.iron_will, 'relics');
 
     // Adiciona armas de diferentes famílias ao inventário para variedade
     this.inventorySystem.add(WEAPONS.flame_sword, 'weapons');
@@ -126,6 +133,13 @@ export class GameScene extends Phaser.Scene {
 
     // ── Fade in ───────────────────────────────────────────────
     this.cameras.main.fadeIn(800, 0, 0, 0);
+
+    // Show biome name
+    if (this.hud && this.areaData && this.areaData.biome) {
+      this.time.delayedCall(1000, () => {
+        this.hud.showNotification(this.areaData.biome.name, '#ffffff', 4000);
+      });
+    }
   }
 
   // ──────────────────────────────────────────────────────────
@@ -140,25 +154,87 @@ export class GameScene extends Phaser.Scene {
     // Grupos de física
     this.wallsGroup    = this.physics.add.staticGroup();
     this.doorsGroup    = this.physics.add.staticGroup();
+    this.hazardsGroup  = this.physics.add.staticGroup();
     this.enemiesGroup  = this.physics.add.group();
     this._activeEnemies = [];
     this._activeDrops   = [];
     this._activeChests  = [];
+    this._activeProjectiles = [];
     this._activeBoss    = null;
     this._deathOrb      = null;
     this._abyssPortal   = null;
     this._sanctuaryObj  = null;
 
+    // ── Sistema de perigos ambientais ─────────────────────────
+    this._hazardManager = new EnvironmentalHazardManager(this);
+
     this._buildTilemap(room);
+
+    // Popula perigos ambientais reais após o tilemap estar montado
+    // Passa o total de salas para IlusioDoor calcular destinos válidos
+    room._totalRooms = this.areaData.rooms.length;
+    const roomRNG = this.areaData.rooms[this.currentRoomIndex].rng ?? this.seedSystem.roomRNG(this.currentAreaIndex, this.currentRoomIndex);
+    if (room.type !== 'SANCTUARY' && room.type !== 'ENTRANCE') {
+      this._hazardManager.populate(this.areaData.biome.id, room, roomRNG.fork(42));
+    }
+
     this._spawnRoomContent(room);
 
     // Partículas de ambiente
     this._buildAmbientParticles();
+
+    // Recria a orbe de morte se esta sala for a sala onde o player morreu
+    this._checkSpawnDeathOrbForRoom();
+  }
+
+  _checkSpawnDeathOrbForRoom() {
+    // Remove orbe visual anterior se houver para evitar duplicações
+    if (this._deathOrb) {
+      this._deathOrb.getData('label')?.destroy();
+      this._deathOrb.destroy();
+      this._deathOrb = null;
+    }
+
+    if (
+      this.xpSystem.hasLostXP &&
+      this.xpSystem.deathAreaIndex === this.currentAreaIndex &&
+      this.xpSystem.deathRoomIndex === this.currentRoomIndex &&
+      this.xpSystem.deathPosition
+    ) {
+      this._spawnDeathOrb(this.xpSystem.deathPosition.x, this.xpSystem.deathPosition.y);
+    }
   }
 
   _buildTilemap(room) {
     const { grid, tileW, tileH } = room.data;
     const biome = this.areaData.biome;
+    const MONO = '"Courier New", "Consolas", monospace';
+
+    // Mapa de caracteres de hazard por bioma
+    const HAZARD_CHARS = {
+      'ARREDORES_CINZENTOS': '~', 'AQUEDUTO_SUBMERSO': '≈',
+      'CARCERE_DE_SANGUE': '§', 'FORJA_MACULADA': '▲',
+      'JARDIM_PUTRIDO': '♣', 'CORACAO_DO_ABISMO': '◊',
+      'CATACUMBAS_ECOANTES': '░', 'ABISMO_CRISTALINO': '◇',
+      'CIDADE_SUBTERRANEA': '¤', 'BIBLIOTECA_DO_OCULTO': '∞',
+    };
+    const HAZARD_COLORS = {
+      'ARREDORES_CINZENTOS': '#656973', 'AQUEDUTO_SUBMERSO': '#376B70',
+      'CARCERE_DE_SANGUE': '#9C4C52', 'FORJA_MACULADA': '#AF5D3B',
+      'JARDIM_PUTRIDO': '#789655', 'CORACAO_DO_ABISMO': '#6555A4',
+      'CATACUMBAS_ECOANTES': '#5B5061', 'ABISMO_CRISTALINO': '#6EADB7',
+      'CIDADE_SUBTERRANEA': '#76889C', 'BIBLIOTECA_DO_OCULTO': '#796395',
+    };
+
+    // Floor chars com variação sutil
+    const floorChars = ['.', '.', '.', ',', '.', '`', '.'];
+    let charIdx = 0;
+
+    // Converte cor hex para string CSS
+    const hexToCSS = (hex) => '#' + hex.toString(16).padStart(6, '0');
+    const floorColor = hexToCSS(biome.palette.floor);
+    const wallColor  = hexToCSS(biome.palette.wall);
+    const accentColor = hexToCSS(biome.palette.accent);
 
     for (let y = 0; y < tileH; y++) {
       for (let x = 0; x < tileW; x++) {
@@ -168,33 +244,86 @@ export class GameScene extends Phaser.Scene {
 
         if (tile === TILE_TYPES.VOID) continue;
 
+        // Variação determinística do caractere de chão
+        charIdx = (x * 7 + y * 13) % floorChars.length;
+
         if (tile === TILE_TYPES.FLOOR) {
-          this.add.image(wx + TILE / 2, wy + TILE / 2, 'tile_floor').setTint(biome.palette.floor);
+          const isDebris = (x * 7 + y * 13) % 5 === 0;
+          const floorKey = isDebris && this.textures.exists(`tile_floor_debris_${biome.id}`)
+            ? `tile_floor_debris_${biome.id}`
+            : (this.textures.exists(`tile_floor_${biome.id}`) ? `tile_floor_${biome.id}` : 'tile_floor');
+          this.add.image(wx + TILE / 2, wy + TILE / 2, floorKey).setDepth(0);
+
         } else if (tile === TILE_TYPES.DOOR_N || tile === TILE_TYPES.DOOR_S ||
                    tile === TILE_TYPES.DOOR_E || tile === TILE_TYPES.DOOR_W) {
-          this.add.image(wx + TILE / 2, wy + TILE / 2, 'tile_floor').setTint(biome.palette.floor);
-          this.add.image(wx + TILE / 2, wy + TILE / 2, 'tile_door').setTint(biome.palette.accent).setAlpha(0.85);
+          // Chão embaixo da porta
+          const floorKey = this.textures.exists(`tile_floor_${biome.id}`) ? `tile_floor_${biome.id}` : 'tile_floor';
+          this.add.image(wx + TILE / 2, wy + TILE / 2, floorKey).setDepth(0);
+
+          // Porta monumental detalhada com borda e ferragens
+          const doorSprite = this.add.image(wx + TILE / 2, wy + TILE / 2, 'tile_door').setDepth(2);
 
           let dir = 'E';
           if (tile === TILE_TYPES.DOOR_N) dir = 'N';
           else if (tile === TILE_TYPES.DOOR_S) dir = 'S';
           else if (tile === TILE_TYPES.DOOR_W) dir = 'W';
 
+          if (dir === 'N' || dir === 'S') {
+            doorSprite.setAngle(90);
+          }
+
           const doorBody = this.doorsGroup.create(wx + TILE / 2, wy + TILE / 2, 'tile_door');
           doorBody.setVisible(false).refreshBody();
           doorBody.setData('direction', dir);
+
         } else if (tile === TILE_TYPES.WALL) {
-          this.add.image(wx + TILE / 2, wy + TILE / 2, 'tile_wall').setTint(biome.palette.wall);
+          const isCracked = (x * 5 + y * 11) % 4 === 0;
+          const wallKey = isCracked && this.textures.exists(`tile_wall_cracked_${biome.id}`)
+            ? `tile_wall_cracked_${biome.id}`
+            : (this.textures.exists(`tile_wall_${biome.id}`) ? `tile_wall_${biome.id}` : 'tile_wall');
+          this.add.image(wx + TILE / 2, wy + TILE / 2, wallKey).setDepth(1);
+
           const body = this.wallsGroup.create(wx + TILE / 2, wy + TILE / 2, 'tile_wall');
           body.setVisible(false).refreshBody();
+
         } else if (tile === TILE_TYPES.OBSTACLE) {
-          this.add.image(wx + TILE / 2, wy + TILE / 2, 'tile_floor').setTint(biome.palette.floor);
-          this.add.image(wx + TILE / 2, wy + TILE / 2, 'tile_obstacle').setTint(biome.palette.wall);
+          // Chão embaixo
+          const floorKey = this.textures.exists(`tile_floor_${biome.id}`) ? `tile_floor_${biome.id}` : 'tile_floor';
+          this.add.image(wx + TILE / 2, wy + TILE / 2, floorKey).setDepth(0);
+          // Obstáculo: Pilar entalhado
+          this.add.image(wx + TILE / 2, wy + TILE / 2, 'tile_obstacle').setDepth(1);
+
           const body = this.wallsGroup.create(wx + TILE / 2, wy + TILE / 2, 'tile_obstacle');
           body.setVisible(false).refreshBody();
+
         } else if (tile === TILE_TYPES.SANCTUARY) {
-          this.add.image(wx + TILE / 2, wy + TILE / 2, 'tile_floor').setTint(biome.palette.floor);
+          const floorKey = this.textures.exists(`tile_floor_${biome.id}`) ? `tile_floor_${biome.id}` : 'tile_floor';
+          this.add.image(wx + TILE / 2, wy + TILE / 2, floorKey).setDepth(0);
           this._spawnSanctuary(wx + TILE / 2, wy + TILE / 2);
+
+        } else if (tile === TILE_TYPES.HAZARD) {
+          // Chão embaixo ou líquido volumétrico tridimensional
+          if ((biome.id === 'AQUEDUTO_SUBMERSO' || biome.id === 'ARREDORES_CINZENTOS') && this.textures.exists('water_frame_0')) {
+            const waterTile = this.add.sprite(wx + TILE / 2, wy + TILE / 2, 'water_frame_0').setDepth(1);
+            if (this.anims?.exists('water_flow')) {
+              waterTile.play('water_flow');
+            }
+          } else if (biome.id === 'CARCERE_DE_SANGUE' && this.textures.exists('liquid_blood')) {
+            this.add.image(wx + TILE / 2, wy + TILE / 2, 'liquid_blood').setDepth(1);
+          } else if (biome.id === 'FORJA_MACULADA' && this.textures.exists('liquid_magma')) {
+            this.add.image(wx + TILE / 2, wy + TILE / 2, 'liquid_magma').setDepth(1);
+          } else {
+            const floorKey = this.textures.exists(`tile_floor_${biome.id}`) ? `tile_floor_${biome.id}` : 'tile_floor';
+            this.add.image(wx + TILE / 2, wy + TILE / 2, floorKey).setDepth(0);
+            const hazChar = HAZARD_CHARS[biome.id] ?? '^';
+            const hazColor = HAZARD_COLORS[biome.id] ?? accentColor;
+            this.add.text(wx + TILE / 2, wy + TILE / 2, hazChar, {
+              fontFamily: MONO, fontSize: '20px', color: hazColor,
+            }).setOrigin(0.5).setDepth(1).setAlpha(0.85);
+          }
+
+          const body = this.hazardsGroup.create(wx + TILE / 2, wy + TILE / 2, 'tile_floor');
+          body.setVisible(false).refreshBody();
         }
       }
     }
@@ -281,7 +410,8 @@ export class GameScene extends Phaser.Scene {
     const bx = Math.floor(tileW / 2) * TILE;
     const by = Math.floor(tileH / 2) * TILE;
 
-    const template = { ...BOSS_TEMPLATES.ashen_lord };
+    const bossId = this.areaData.biome.bossPool[0] || 'ashen_lord';
+    const template = { ...BOSS_TEMPLATES[bossId] };
 
     this._activeBoss = new Boss(this, bx, by, template);
     this.enemiesGroup.add(this._activeBoss);
@@ -295,17 +425,30 @@ export class GameScene extends Phaser.Scene {
   }
 
   _spawnSanctuary(x, y) {
-    this._sanctuaryObj = this.add.image(x, y, 'sanctuary').setDepth(5).setScale(1.4);
+    // Santuário: altar esculpido em ASCII de alta densidade
+    this._sanctuaryObj = this.add.image(x, y, 'tile_sanctuary').setDepth(5).setScale(1.1);
     this._sanctuaryObj.setData('wx', x).setData('wy', y);
 
-    // Luz pulsante
+    // Chama pulsante do braseiro
     this.tweens.add({
       targets: this._sanctuaryObj,
-      alpha: 0.7, scale: 1.5,
+      alpha: { from: 0.8, to: 1 },
       duration: 1200,
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut',
+    });
+
+    // Aura celestial dourada
+    const aura = this.add.circle(x, y, 24, 0xffcc33, 0.15).setDepth(4);
+    this.tweens.add({
+      targets: aura,
+      scaleX: 1.35,
+      scaleY: 1.35,
+      alpha: { from: 0.08, to: 0.22 },
+      duration: 2000,
+      yoyo: true,
+      repeat: -1,
     });
 
     if (!this.discoveredSanctuaries.includes(this.currentRoomIndex)) {
@@ -316,6 +459,7 @@ export class GameScene extends Phaser.Scene {
   _spawnChest(room) {
     const cx = Math.floor(room.data.tileW / 2) * TILE;
     const cy = Math.floor(room.data.tileH / 2) * TILE;
+    // Baú detalhado em ASCII com ferragens reforçadas
     const chest = this.add.image(cx, cy, 'chest').setDepth(5).setInteractive();
     chest.setData('opened', false);
 
@@ -326,7 +470,10 @@ export class GameScene extends Phaser.Scene {
       if (chestEntry.opened) return;
       chestEntry.opened = true;
       chest.setData('opened', true);
-      chest.setTint(0x666666);
+      // Alterna para o baú aberto reluzindo ouro e joias em ASCII
+      if (this.textures.exists('chest_open')) {
+        chest.setTexture('chest_open');
+      }
       this._openChest(cx, cy);
     });
   }
@@ -348,7 +495,7 @@ export class GameScene extends Phaser.Scene {
       inventory: this.inventorySystem,
     });
 
-    this.player.relics = ['eye_of_abyss', 'iron_will'];
+    this.player.relics = [...(this.equippedRelics ?? [])];
     this.player.checkWeaponLevelPenalty();
 
     // Sincroniza HP e charges do save
@@ -359,34 +506,60 @@ export class GameScene extends Phaser.Scene {
   }
 
   _buildAmbientParticles() {
+    const MONO = '"Courier New", "Consolas", monospace';
     const biome = this.areaData.biome;
     const roomW = this._currentRoom.data.tileW * TILE;
     const roomH = this._currentRoom.data.tileH * TILE;
+    const pType = biome.ambientParticles || 'ASH';
+    const accentCSS = '#' + (biome.palette.accent ?? 0x554433).toString(16).padStart(6, '0');
 
-    for (let i = 0; i < 25; i++) {
-      const p = this.add.circle(
+    // Caracteres por tipo de partícula
+    const PARTICLE_CHARS = {
+      ASH: ['·', '°', '`', "'"], LEAVES: ['♠', '♣', ',', '.'],
+      BUBBLES: ['°', 'o', 'O', '·'], EMBERS: ['*', '·', '°', '^'],
+      SPARKS: ['*', '+', '·', '×'], MIST: ['░', '▒', '·', '~'],
+      HOLY: ['✦', '·', '*', '+'], VOID: ['·', '▪', '▫', '°'],
+    };
+    const chars = PARTICLE_CHARS[pType] ?? ['·'];
+
+    const countMap = { ASH: 20, MIST: 30, BUBBLES: 25, EMBERS: 18, LEAVES: 12, SPARKS: 15, HOLY: 18, VOID: 28 };
+    const pCount = countMap[pType] || 20;
+
+    for (let i = 0; i < pCount; i++) {
+      const char = chars[i % chars.length];
+      const p = this.add.text(
         Phaser.Math.Between(0, roomW),
         Phaser.Math.Between(0, roomH),
-        Phaser.Math.Between(1, 3),
-        biome.palette.accent ?? 0x554433,
-        Phaser.Math.FloatBetween(0.05, 0.3)
-      ).setDepth(1);
+        char,
+        {
+          fontFamily: MONO,
+          fontSize: `${Phaser.Math.Between(8, 14)}px`,
+          color: accentCSS,
+        }
+      ).setDepth(1).setAlpha(Phaser.Math.FloatBetween(0.1, 0.3));
 
-      this.tweens.add({
-        targets: p,
-        y: `-=${Phaser.Math.Between(80, 200)}`,
-        x: `+=${Phaser.Math.Between(-40, 40)}`,
-        alpha: { from: 0.2, to: 0 },
-        duration: Phaser.Math.Between(3000, 7000),
-        repeat: -1,
-        delay: Phaser.Math.Between(0, 5000),
-        onRepeat: () => {
-          p.setPosition(
-            Phaser.Math.Between(0, roomW),
-            Phaser.Math.Between(roomH * 0.5, roomH)
-          );
-        },
-      });
+      let tweenConfig = { targets: p, repeat: -1, delay: Phaser.Math.Between(0, 3000) };
+
+      if (pType === 'ASH' || pType === 'LEAVES') {
+        tweenConfig.y = `+=${Phaser.Math.Between(80, 200)}`;
+        tweenConfig.x = `+=${Phaser.Math.Between(20, 60)}`;
+        tweenConfig.alpha = { from: 0.25, to: 0 };
+        tweenConfig.duration = Phaser.Math.Between(3000, 7000);
+        tweenConfig.onRepeat = () => p.setPosition(Phaser.Math.Between(0, roomW), Phaser.Math.Between(-50, roomH * 0.5));
+      } else if (pType === 'BUBBLES' || pType === 'EMBERS' || pType === 'SPARKS') {
+        tweenConfig.y = `-=${Phaser.Math.Between(100, 250)}`;
+        tweenConfig.x = `+=${Phaser.Math.Between(-30, 30)}`;
+        tweenConfig.alpha = { from: 0.35, to: 0 };
+        tweenConfig.duration = Phaser.Math.Between(2000, 5000);
+        tweenConfig.onRepeat = () => p.setPosition(Phaser.Math.Between(0, roomW), Phaser.Math.Between(roomH * 0.5, roomH + 50));
+      } else if (pType === 'MIST' || pType === 'VOID' || pType === 'HOLY') {
+        tweenConfig.y = `+=${Phaser.Math.Between(-30, 30)}`;
+        tweenConfig.x = `+=${Phaser.Math.Between(-30, 30)}`;
+        tweenConfig.alpha = { start: 0, from: 0.15, to: 0.4, yoyo: true };
+        tweenConfig.duration = Phaser.Math.Between(4000, 8000);
+      }
+
+      this.tweens.add(tweenConfig);
     }
   }
 
@@ -429,19 +602,75 @@ export class GameScene extends Phaser.Scene {
   }
 
   _setupPhysics() {
+    if (!this._roomColliders) this._roomColliders = [];
+    this._roomColliders.forEach(c => c.destroy());
+    this._roomColliders = [];
+    this.playerHazardTouch = false;
+
     // Player vs Paredes
-    this.physics.add.collider(this.player, this.wallsGroup);
+    this._roomColliders.push(this.physics.add.collider(this.player, this.wallsGroup));
     // Inimigos vs Paredes
-    this.physics.add.collider(this.enemiesGroup, this.wallsGroup);
+    this._roomColliders.push(this.physics.add.collider(this.enemiesGroup, this.wallsGroup));
     // Inimigos vs Inimigos
-    this.physics.add.collider(this.enemiesGroup, this.enemiesGroup);
+    this._roomColliders.push(this.physics.add.collider(this.enemiesGroup, this.enemiesGroup));
+    // Player vs Inimigos (impede sobreposição física sem prender o jogador durante esquiva / i-frames)
+    this._roomColliders.push(
+      this.physics.add.collider(
+        this.player,
+        this.enemiesGroup,
+        null,
+        (player, enemy) => {
+          if (!player || !enemy || player.isDead || enemy.isDead) return false;
+          // Permite atravessar durante esquiva e i-frames para não prender o jogador
+          if (player.isInvincible || player.state === 'DODGE') return false;
+          return true;
+        },
+        this
+      )
+    );
     // Player vs Portas (transição entre salas)
     if (this.doorsGroup) {
-      this.physics.add.overlap(this.player, this.doorsGroup, (player, door) => {
-        this._onPlayerTouchDoor(door.getData('direction'));
-      });
+      this._roomColliders.push(
+        this.physics.add.overlap(this.player, this.doorsGroup, (player, door) => {
+          this._onPlayerTouchDoor(door.getData('direction'));
+        })
+      );
+    }
+    // Hazards
+    if (this.hazardsGroup) {
+      this._roomColliders.push(
+        this.physics.add.overlap(this.player, this.hazardsGroup, (player, hazard) => {
+          this.playerHazardTouch = true;
+          this._onPlayerTouchHazard(hazard);
+        })
+      );
+      this._roomColliders.push(
+        this.physics.add.overlap(this.enemiesGroup, this.hazardsGroup, (enemy, hazard) => {
+          this._onEnemyTouchHazard(enemy, hazard);
+        })
+      );
     }
   }
+
+  _onPlayerTouchHazard(hazard) {
+    // A lógica principal de perigos agora é gerenciada por EnvironmentalHazardManager.
+    // Este método serve como fallback para o tile HAZARD estático.
+    if (this.player.isDead) return;
+    const biome = this.areaData.biome.id;
+
+    // Efeitos via tile HAZARD para biomas sem objeto específico:
+    if (biome === 'ARREDORES_CINZENTOS') {
+      this.player.activeHazardEffect = 'ASH';
+    } else if (biome === 'CORACAO_DO_ABISMO') {
+      this.player.activeHazardEffect = 'GRAVITY';
+    }
+  }
+
+  _onEnemyTouchHazard(enemy, hazard) {
+    // Fallback para tile HAZARD estático — a lógica principal está no _hazardManager.
+    if (enemy.isDead) return;
+  }
+
 
   _onPlayerTouchDoor(dir) {
     if (this._isTransitioning || !this.player || this.player.isDead) return;
@@ -457,6 +686,15 @@ export class GameScene extends Phaser.Scene {
   _transitionToRoom(targetIndex, fromDirection) {
     this._isTransitioning = true;
     this.player.body.setVelocity(0, 0);
+
+    // Illusion logic for BIBLIOTECA_DO_OCULTO
+    if (this.areaData.biome.id === 'BIBLIOTECA_DO_OCULTO' && this._currentRoom) {
+      const rng = this._currentRoom.rng.fork(8);
+      if (rng.next() < 0.25) { // 25% chance of illusory door redirecting to a random visited room
+         targetIndex = rng.pick(Array.from(this.areaData.rooms.keys()));
+         this.hud.showNotification('Ilusão Ativada', '#796395', 2000);
+      }
+    }
 
     this.cameras.main.fadeOut(180, 0, 0, 0);
     this.cameras.main.once('camerafadeoutcomplete', () => {
@@ -634,50 +872,26 @@ export class GameScene extends Phaser.Scene {
   }
 
   _processPlayerSkill(player, skillData) {
-    // MVP: habilidade em linha reta (Corte Ignição)
+    const MONO = '"Courier New", "Consolas", monospace';
     const angle  = player.facingAngle;
-    const range  = skillData.range ?? 200;
+    const speed  = 550;
     const stepX  = Math.cos(angle);
     const stepY  = Math.sin(angle);
 
-    // Visual do projétil
-    const proj = this.add.rectangle(
-      player.x, player.y, 12, 6,
-      0xff4400, 0.9
-    ).setDepth(15).setRotation(angle);
+    // Projétil ASCII: '*' com cor de fogo
+    const obj = this.add.text(
+      player.x, player.y, '*',
+      { fontFamily: MONO, fontSize: '20px', color: '#ff6622', fontStyle: 'bold' }
+    ).setOrigin(0.5).setDepth(15);
 
-    this.tweens.add({
-      targets: proj,
-      x: player.x + stepX * range,
-      y: player.y + stepY * range,
-      alpha: 0,
-      duration: 350,
-      onUpdate: () => {
-        // Verifica hits ao longo do caminho
-        for (const enemy of this._activeEnemies) {
-          if (enemy.isDead) continue;
-          const d = Phaser.Math.Distance.Between(proj.x, proj.y, enemy.x, enemy.y);
-          if (d < 40) {
-            const result = DamageSystem.resolveHit({
-              attack: skillData.damage ?? 55,
-              defense: enemy.effectiveDefense,
-              critChance: player.critChance,
-              critMultiplier: player.critMultiplier,
-            });
-            enemy.takeDamage(result.finalDamage);
-            enemy.balanceSystem?.takePoiseDamage(skillData.equilDamage ?? 20);
-
-            // Status elemental
-            if (skillData.element && enemy.statusSystem) {
-              enemy.statusSystem.addBuildup(
-                skillData.element, skillData.elementBuildup ?? 45,
-                enemy.resistances?.[skillData.element] ?? 0
-              );
-            }
-          }
-        }
-      },
-      onComplete: () => proj.destroy(),
+    this._activeProjectiles.push({
+      obj,
+      vx: stepX * speed,
+      vy: stepY * speed,
+      life: 350,
+      isEnemy: false,
+      skillData,
+      hitSet: new Set()
     });
   }
 
@@ -728,8 +942,8 @@ export class GameScene extends Phaser.Scene {
     this.xpSystem.addXP(xpGain);
     this._floatXP(enemy.x, enemy.y, xpGain);
 
-    // Loot
-    const drops = this.lootSystem.generateDrop(enemy.template, this.levelSystem.level);
+    // Loot escalonado por nível e tipo do inimigo (independente do nível do jogador)
+    const drops = this.lootSystem.generateDrop(enemy, this.abyssDepth);
     drops.forEach(drop => {
       if (drop.type === 'item') {
         this._spawnDroppedItem(enemy.x, enemy.y, drop);
@@ -781,8 +995,8 @@ export class GameScene extends Phaser.Scene {
     this._currentRoom.cleared = true;
     this._activeEnemies = [];
 
-    // Drop de boss
-    const drops = this.lootSystem.generateDrop(boss.template, this.levelSystem.level);
+    // Drop de boss baseado na dificuldade do chefe
+    const drops = this.lootSystem.generateDrop(boss, this.abyssDepth);
     drops.forEach(drop => {
       if (drop.type === 'item') this._spawnDroppedItem(boss.x, boss.y, drop);
     });
@@ -795,10 +1009,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   _onPlayerDied(x, y) {
-    this.xpSystem.onDeath({ x, y });
+    // Registra a morte com sala e área para permitir recriação fiel da orbe
+    this.xpSystem.onDeath({ x, y }, this.currentRoomIndex, this.currentAreaIndex);
 
     // Orbe de XP no local da morte
     this._spawnDeathOrb(x, y);
+
+    // Autosave imediato do estado de morte para preservar caso recarregue
+    this._autosave();
 
     // Delay e tela de morte
     this.time.delayedCall(1200, () => {
@@ -807,33 +1025,45 @@ export class GameScene extends Phaser.Scene {
   }
 
   _spawnDeathOrb(x, y) {
-    if (this._deathOrb) this._deathOrb.destroy();
+    const MONO = '"Courier New", "Consolas", monospace';
+    if (this._deathOrb) {
+      this._deathOrb.getData('label')?.destroy();
+      this._deathOrb.destroy();
+      this._deathOrb = null;
+    }
 
-    this._deathOrb = this.add.circle(x, y, 10, 0xffcc00, 0.8).setDepth(8);
-    const label = this.add.text(x, y - 20, `XP perdida`, {
-      fontFamily: 'Inter', fontSize: '10px', color: '#ffcc00',
-    }).setOrigin(0.5).setDepth(9);
+    // Orbe de morte como '$' dourado pulsante
+    this._deathOrb = this.add.text(x, y, '$', {
+      fontFamily: MONO, fontSize: '28px', color: '#ffcc00', fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(15).setInteractive();
+
+    const label = this.add.text(x, y - 22, `XP perdida (${this.xpSystem.lost})`, {
+      fontFamily: MONO, fontSize: '11px', color: '#ffcc00',
+      stroke: '#000', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(16);
 
     this.tweens.add({
       targets: [this._deathOrb],
-      scaleX: 1.3, scaleY: 1.3,
+      alpha: { from: 0.5, to: 1 },
       duration: 600, yoyo: true, repeat: -1,
     });
 
     this._deathOrb.setData('label', label);
-    this._deathOrb.setInteractive(
-      new Phaser.Geom.Circle(0, 0, 16), Phaser.Geom.Circle.Contains
-    );
+
     this._deathOrb.on('pointerup', () => {
+      if (!this._deathOrb) return;
       const recovered = this.xpSystem.recoverLost();
       this._floatXP(x, y, recovered);
-      this._deathOrb.destroy();
       label.destroy();
+      this._deathOrb.destroy();
       this._deathOrb = null;
+      this.hud.showNotification(`+${recovered} XP Recuperada!`, '#ffdd00', 2500);
+      this._autosave();
     });
   }
 
   _showDeathScreen() {
+    const MONO = '"Courier New", "Consolas", monospace';
     const W = this.cameras.main.width;
     const H = this.cameras.main.height;
 
@@ -843,31 +1073,42 @@ export class GameScene extends Phaser.Scene {
       const overlay = this.add.rectangle(
         this.cameras.main.scrollX + W / 2,
         this.cameras.main.scrollY + H / 2,
-        W, H, 0x000000, 0.9
+        W, H, 0x000000, 0.95
       ).setDepth(500).setScrollFactor(0);
 
-      this.add.text(W / 2, H / 2 - 60, 'VOCÊ MORREU', {
-        fontFamily: 'Cinzel', fontSize: '48px', color: '#cc1111',
-        stroke: '#000', strokeThickness: 6,
+      // Morte em ASCII art
+      const deathArt = [
+        '  ╦  ╦╔═╗╔═╗╔═╗  ╔╦╗╔═╗╦═╗╦═╗╔═╗╦ ╦  ',
+        '  ╚╗╔╝║ ║║  ║╣   ║║║║ ║╠╦╝╠╦╝║╣ ║ ║  ',
+        '   ╚╝ ╚═╝╚═╝╚═╝  ╩ ╩╚═╝╩╚═╩╚═╚═╝╚═╝  ',
+      ];
+      deathArt.forEach((line, i) => {
+        this.add.text(W / 2, H / 2 - 80 + i * 18, line, {
+          fontFamily: MONO, fontSize: '14px', color: '#881111',
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(501);
+      });
+
+      this.add.text(W / 2, H / 2 - 10, `$ XP perdida no local: ${this.xpSystem.lost}`, {
+        fontFamily: MONO, fontSize: '14px', color: '#ffcc00',
       }).setOrigin(0.5).setScrollFactor(0).setDepth(501);
 
-      this.add.text(W / 2, H / 2, `XP não recuperada: perdida`, {
-        fontFamily: 'Inter', fontSize: '14px', color: '#888888',
-      }).setOrigin(0.5).setScrollFactor(0).setDepth(501);
-
-      const respawnBtn = this.add.text(W / 2, H / 2 + 60, 'Renascer no Santuário', {
-        fontFamily: 'Cinzel', fontSize: '20px', color: '#ffddaa',
-        backgroundColor: '#1a0000', padding: { x: 16, y: 8 },
+      const respawnBtn = this.add.text(W / 2, H / 2 + 40, '> Renascer no Santuário <', {
+        fontFamily: MONO, fontSize: '16px', color: '#ffddaa',
+        padding: { x: 12, y: 6 },
       }).setOrigin(0.5).setScrollFactor(0).setDepth(501).setInteractive();
 
+      respawnBtn.on('pointerover', () => respawnBtn.setColor('#ffffff'));
+      respawnBtn.on('pointerout',  () => respawnBtn.setColor('#ffddaa'));
       respawnBtn.on('pointerup', () => {
         overlay.destroy();
         this._respawnAtSanctuary();
       });
 
-      const menuBtn = this.add.text(W / 2, H / 2 + 110, 'Menu Principal', {
-        fontFamily: 'Inter', fontSize: '14px', color: '#666666',
+      const menuBtn = this.add.text(W / 2, H / 2 + 80, '> Menu Principal <', {
+        fontFamily: MONO, fontSize: '12px', color: '#666666',
       }).setOrigin(0.5).setScrollFactor(0).setDepth(501).setInteractive();
+      menuBtn.on('pointerover', () => menuBtn.setColor('#aaaaaa'));
+      menuBtn.on('pointerout',  () => menuBtn.setColor('#666666'));
 
       menuBtn.on('pointerup', () => this.scene.start('MainMenuScene'));
     });
@@ -897,38 +1138,58 @@ export class GameScene extends Phaser.Scene {
     this._setupPhysics();
     this._setupCamera();
 
-    this.xpSystem.purgeLost();
+    // REGRA SOULS-LIKE CORRIGIDA: NÃO chamar purgeLost() no renascimento!
+    // A XP perdida fica esperando na orbe na sala da morte.
+    // Ela só será apagada se o jogador morrer uma segunda vez sem recuperá-la.
+    this._autosave();
 
     this.cameras.main.fadeIn(600, 0, 0, 0);
     this.hud.showNotification('Renascido no Santuário', '#ffaa44', 2500);
   }
 
   _clearRoom() {
-    this._activeEnemies.forEach(e => { if (!e.isDead) e.destroy(); });
+    // ── Destrói perigos ambientais antes de qualquer outra coisa ──
+    if (this._hazardManager) {
+      this._hazardManager.destroy();
+      this._hazardManager = null;
+    }
+
+    this._activeEnemies.forEach(e => { if (!e.isDead) { try { e.destroy(); } catch(_){} } });
     this._activeEnemies = [];
     this._activeBoss = null;
-    this._activeDrops.forEach(d => { if (d.icon) d.icon.destroy(); });
+    this._activeDrops.forEach(d => { if (d.icon) { try { d.icon.destroy(); } catch(_){} } });
     this._activeDrops = [];
-    this._activeChests.forEach(c => { if (c.obj) c.obj.destroy(); });
+    this._activeChests.forEach(c => { if (c.obj) { try { c.obj.destroy(); } catch(_){} } });
     this._activeChests = [];
     if (this._abyssPortal) {
-      this._abyssPortal.destroy();
+      try { this._abyssPortal.destroy(); } catch(_){}
       this._abyssPortal = null;
     }
     if (this._interactionPrompt) {
-      this._interactionPrompt.destroy();
+      try { this._interactionPrompt.destroy(); } catch(_){}
       this._interactionPrompt = null;
     }
+    if (this._deathOrb) {
+      this._deathOrb.getData('label')?.destroy();
+      try { this._deathOrb.destroy(); } catch(_){}
+      this._deathOrb = null;
+    }
 
-    // Remove todos os GameObjects da cena menos o player e UI
-    this.children.getAll().forEach(obj => {
+    if (this._roomColliders) {
+      this._roomColliders.forEach(c => { try { c.destroy(); } catch(_){} });
+      this._roomColliders = [];
+    }
+
+    // Remove GameObjects da cena com segurança
+    [...this.children.getAll()].forEach(obj => {
       if (obj !== this.player && obj.depth < 100) {
-        obj.destroy();
+        try { obj.destroy(); } catch (_) {}
       }
     });
-    this.wallsGroup?.destroy(true);
-    this.doorsGroup?.destroy(true);
-    this.enemiesGroup?.destroy(true);
+    try { this.wallsGroup?.destroy(true); } catch(_){}
+    try { this.doorsGroup?.destroy(true); } catch(_){}
+    try { this.enemiesGroup?.destroy(true); } catch(_){}
+    try { this.hazardsGroup?.destroy(true); } catch(_){}
   }
 
   // ──────────────────────────────────────────────────────────
@@ -945,7 +1206,7 @@ export class GameScene extends Phaser.Scene {
       if (r.type !== 'BOSS') r.cleared = false;
     });
 
-    if (this._activeEnemies.length === 0 && this._currentRoom.type !== 'BOSS') {
+    if (this._activeEnemies.length === 0 && this._currentRoom.type !== 'BOSS' && this._currentRoom.type !== 'SANCTUARY') {
       this._spawnEnemies(this._currentRoom);
       this._setupPhysics();
     }
@@ -957,20 +1218,31 @@ export class GameScene extends Phaser.Scene {
   }
 
   _spawnAbyssPortal(x, y) {
+    const MONO = '"Courier New", "Consolas", monospace';
     if (this._abyssPortal) this._abyssPortal.destroy();
-    this._abyssPortal = this.add.image(x, y, 'portal').setDepth(6).setScale(1.2);
+
+    // Portal como 'Ω' roxo pulsante
+    this._abyssPortal = this.add.text(x, y, 'Ω', {
+      fontFamily: MONO, fontSize: '40px', color: '#aa44ff', fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(6);
 
     this.tweens.add({
       targets: this._abyssPortal,
-      rotation: Math.PI * 2,
-      duration: 6000,
-      repeat: -1,
-    });
-    this.tweens.add({
-      targets: this._abyssPortal,
-      scaleX: 1.4, scaleY: 1.4,
+      alpha: { from: 0.5, to: 1 },
       duration: 1000, yoyo: true, repeat: -1,
+      ease: 'Sine.easeInOut',
     });
+
+    // Aura
+    const aura = this.add.text(x, y, '◊', {
+      fontFamily: MONO, fontSize: '56px', color: '#6622aa',
+    }).setOrigin(0.5).setDepth(5).setAlpha(0.2);
+    this.tweens.add({
+      targets: aura,
+      alpha: { from: 0.1, to: 0.3 },
+      duration: 1500, yoyo: true, repeat: -1,
+    });
+
     this._abyssPortal.setData('wx', x).setData('wy', y);
   }
 
@@ -994,6 +1266,7 @@ export class GameScene extends Phaser.Scene {
       this._setupPhysics();
       this._setupCamera();
 
+      this.cameras.main.setBackgroundColor(this.areaData.biome.palette.bgColor ?? 0x0d0a08);
       this.cameras.main.fadeIn(800, 0, 0, 0);
       this.hud.showNotification(
         `ABISMO PROFUNDIDADE ${this.abyssDepth} — ${this.areaData.biome.name}`,
@@ -1008,11 +1281,19 @@ export class GameScene extends Phaser.Scene {
   // ──────────────────────────────────────────────────────────
 
   _spawnDroppedItem(x, y, drop) {
-    const icon = this.add.image(
-      x + Phaser.Math.Between(-15, 15),
-      y + Phaser.Math.Between(-15, 15),
-      'chest'
-    ).setScale(0.6).setDepth(7).setInteractive();
+    const MONO = '"Courier New", "Consolas", monospace';
+    const ix = x + Phaser.Math.Between(-15, 15);
+    const iy = y + Phaser.Math.Between(-15, 15);
+
+    // Drop como caractere: '⚔' para armas, '◆' para armaduras
+    const isWeapon = drop.itemId && !drop.itemId.startsWith('worn_') && !drop.itemId.startsWith('armor_');
+    const dropChar = isWeapon ? '⚔' : '◆';
+    const dropColor = drop.rarity === 'EPIC' ? '#ff8800' :
+                      drop.rarity === 'RARE' ? '#4488ff' : '#cccccc';
+
+    const icon = this.add.text(ix, iy, dropChar, {
+      fontFamily: MONO, fontSize: '20px', color: dropColor, fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(7).setInteractive();
 
     this.tweens.add({
       targets: icon,
@@ -1021,7 +1302,7 @@ export class GameScene extends Phaser.Scene {
       ease: 'Sine.easeInOut',
     });
 
-    const dropEntry = { icon, x: icon.x, y: icon.y, drop, collected: false };
+    const dropEntry = { icon, x: ix, y: iy, drop, collected: false };
     this._activeDrops.push(dropEntry);
 
     icon.on('pointerup', () => {
@@ -1030,7 +1311,7 @@ export class GameScene extends Phaser.Scene {
       this._collectDrop(drop);
       this.tweens.add({
         targets: icon,
-        alpha: 0, scaleX: 1.8, scaleY: 1.8,
+        alpha: 0,
         duration: 200,
         onComplete: () => icon.destroy(),
       });
@@ -1040,14 +1321,26 @@ export class GameScene extends Phaser.Scene {
   _collectDrop(drop) {
     if (drop.type !== 'item') return;
 
+    const itemLevel = drop.itemLevel ?? 1;
+
     const baseWeapon = WEAPONS[drop.itemId];
     if (baseWeapon) {
-      const item = { ...baseWeapon, rarity: drop.rarity ?? baseWeapon.rarity };
+      const bonusUpgrade = drop.isBoss
+        ? Math.min(10, Math.floor(itemLevel / 40))
+        : (drop.isElite ? Math.min(5, Math.floor(itemLevel / 60)) : 0);
+
+      const item = {
+        ...baseWeapon,
+        rarity: drop.rarity ?? baseWeapon.rarity,
+        upgradeLevel: Math.max(baseWeapon.upgradeLevel ?? 0, bonusUpgrade),
+        itemLevel,
+      };
       this.inventorySystem.add(item, 'weapons');
       this.hud.showNotification(
-        `⚔ ${item.name} (${drop.rarity ?? item.rarity})`,
+        `⚔ ${item.name} +${item.upgradeLevel} (${item.rarity}) [Nv.${itemLevel}]`,
         '#ffdd88', 3000
       );
+      this.player.checkWeaponLevelPenalty();
       return;
     }
 
@@ -1055,10 +1348,10 @@ export class GameScene extends Phaser.Scene {
       const slot = drop.itemId.includes('helmet') ? 'helmet'
                  : drop.itemId.includes('chest') ? 'chest'
                  : drop.itemId.includes('gloves') ? 'gloves' : 'legs';
-      const piece = createArmorPiece(slot, drop.rarity ?? 'COMMON', null, this.levelSystem.level);
+      const piece = createArmorPiece(slot, drop.rarity ?? 'COMMON', null, itemLevel);
       this.inventorySystem.add(piece, 'armors');
       this.hud.showNotification(
-        `🛡 ${piece.name} (${piece.rarity})`,
+        `🛡 ${piece.name} (${piece.rarity}) [Nv.${itemLevel}]`,
         '#44ffaa', 3000
       );
     }
@@ -1070,25 +1363,32 @@ export class GameScene extends Phaser.Scene {
     const rarityRoll = rng.next();
     const rarity = rarityRoll < 0.05 ? 'EPIC' : rarityRoll < 0.25 ? 'RARE' : 'COMMON';
 
+    // Nível do baú determinado pelo bioma/área e profundidade do abismo
+    const areaLevel = Math.max(1, (this.currentAreaIndex * 15 + 10) + (this.abyssDepth * 25));
+
     if (isArmor) {
       const slot = rng.pick(['helmet', 'chest', 'gloves', 'legs']);
-      const piece = createArmorPiece(slot, rarity, rng, this.levelSystem.level);
+      const piece = createArmorPiece(slot, rarity, rng, areaLevel);
       this.inventorySystem.add(piece, 'armors');
-      this.hud.showNotification(`📦 ${piece.name} (${rarity})`, '#88ddff', 3000);
+      this.hud.showNotification(`📦 ${piece.name} (${rarity}) [Nv.${areaLevel}]`, '#88ddff', 3000);
     } else {
       const weaponIds = Object.keys(WEAPONS);
       const id = rng.pick(weaponIds);
-      const item = { ...WEAPONS[id], rarity };
+      const item = { ...WEAPONS[id], rarity, itemLevel: areaLevel };
       this.inventorySystem.add(item, 'weapons');
-      this.hud.showNotification(`📦 ${item.name} (${rarity})`, '#88ddff', 3000);
+      this.hud.showNotification(`📦 ${item.name} (${rarity}) [Nv.${areaLevel}]`, '#88ddff', 3000);
     }
-    this._floatXP(x, y - 20, 25 + this.levelSystem.level * 5);
+    this._floatXP(x, y - 20, 25 + areaLevel * 4);
   }
 
   _floatXP(x, y, amount) {
+    const MONO = '"Courier New", "Consolas", monospace';
     if (amount <= 0) return;
 
-    const orb = this.add.image(x, y, 'xporb').setDepth(15).setScale(1.2);
+    // '$' flutuando como XP
+    const orb = this.add.text(x, y, '$', {
+      fontFamily: MONO, fontSize: '16px', color: '#ffcc00', fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(15);
     this.tweens.add({
       targets: orb,
       y: y - 50, alpha: 0,
@@ -1096,8 +1396,8 @@ export class GameScene extends Phaser.Scene {
       onComplete: () => orb.destroy(),
     });
 
-    const txt = this.add.text(x + 12, y - 4, `+${amount} XP`, {
-      fontFamily: 'Inter', fontSize: '11px', color: '#ffcc00',
+    const txt = this.add.text(x + 14, y - 4, `+${amount} XP`, {
+      fontFamily: MONO, fontSize: '11px', color: '#ffcc00',
       stroke: '#000', strokeThickness: 2,
     }).setDepth(15);
     this.tweens.add({
@@ -1117,6 +1417,7 @@ export class GameScene extends Phaser.Scene {
     const systems = {
       stat: this.statSystem, xp: this.xpSystem, level: this.levelSystem,
       weapon: this.weaponSystem, armor: this.armorSystem, inventory: this.inventorySystem,
+      scene: this,
     };
     this.inventoryUI.toggle(this.player, systems);
   }
@@ -1275,6 +1576,12 @@ export class GameScene extends Phaser.Scene {
       if (!enemy.isDead) enemy.updateAI(delta, this.player);
     }
 
+    // ── Mecânicas ambientais ───────────────────────────────────
+    if (this._hazardManager) {
+      this._hazardManager.update(delta, this.player, this._activeEnemies);
+      this._updateEnvironmentalInteractions(delta);
+    }
+
     // Interações de proximidade (Santuário, Baús, Drops, Portal, Morte)
     this._checkInteractions();
 
@@ -1288,5 +1595,151 @@ export class GameScene extends Phaser.Scene {
     if (this._activeBoss && !this._activeBoss.isDead) {
       this.bossBar.update();
     }
+
+    // Projectiles
+    this._updateProjectiles(delta);
+  }
+
+  _updateProjectiles(delta) {
+    if (!this._activeProjectiles) return;
+    for (let i = this._activeProjectiles.length - 1; i >= 0; i--) {
+      const p = this._activeProjectiles[i];
+      p.life -= delta;
+      if (p.life <= 0 || !p.obj || p.obj.destroyed) {
+        if (p.obj && !p.obj.destroyed) p.obj.destroy();
+        this._activeProjectiles.splice(i, 1);
+        continue;
+      }
+
+      p.obj.x += (p.vx * delta) / 1000;
+      p.obj.y += (p.vy * delta) / 1000;
+
+      // Reflectors
+      if (this._hazardManager) {
+        for (const c of this._hazardManager.getCrystals()) {
+          if (c.checkProjectileCollision(p.obj) && !p.hitSet.has(c)) {
+            p.hitSet.add(c);
+            c.reflectProjectile(p);
+            // Change rotation for player skill
+            if (!p.isEnemy) {
+              p.obj.setRotation(Math.atan2(p.vy, p.vx));
+            }
+          }
+        }
+      }
+
+      // Hits
+      if (p.isEnemy) {
+        if (this.player && !this.player.isDead) {
+          const d = Phaser.Math.Distance.Between(p.obj.x, p.obj.y, this.player.x, this.player.y);
+          if (d < 28 && this.player.state !== 'DODGE' && !p.hitSet.has(this.player)) {
+            p.hitSet.add(this.player);
+            this.player.takeDamage(p.damage ?? 20);
+            if (p.element) {
+               this.player.statusSystem?.addBuildup(p.element, p.elementBuildup ?? 15, this.player.resistances?.[p.element] ?? 0);
+            }
+            if (p.obj && !p.obj.destroyed) p.obj.destroy();
+            this._activeProjectiles.splice(i, 1);
+          }
+        }
+      } else {
+        for (const enemy of this._activeEnemies) {
+          if (enemy.isDead) continue;
+          const d = Phaser.Math.Distance.Between(p.obj.x, p.obj.y, enemy.x, enemy.y);
+          if (d < 40 && !p.hitSet.has(enemy)) {
+            p.hitSet.add(enemy);
+            const sd = p.skillData;
+            const result = DamageSystem.resolveHit({
+              attack: sd.damage ?? 55,
+              defense: enemy.effectiveDefense,
+              critChance: this.player.critChance,
+              critMultiplier: this.player.critMultiplier,
+            });
+            enemy.takeDamage(result.finalDamage);
+            enemy.balanceSystem?.takePoiseDamage(sd.equilDamage ?? 20);
+            if (sd.element && enemy.statusSystem) {
+              enemy.statusSystem.addBuildup(
+                sd.element, sd.elementBuildup ?? 45,
+                enemy.resistances?.[sd.element] ?? 0
+              );
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // INTERAÇÕES COM PERIGOS AMBIENTAIS
+  // ──────────────────────────────────────────────────────────
+
+  _updateEnvironmentalInteractions(delta) {
+    if (!this._hazardManager || !this.player || this.player.isDead) return;
+    const biomeId = this.areaData?.biome?.id;
+    if (!biomeId) return;
+
+    // ── Plantas tóxicas: verificação de sobreposição de ataque ────
+    // Se o player está atacando, verifica se atingiu alguma planta
+    if (this.player.state === 'ATTACK' || this.player.state === 'HEAVY') {
+      const plants = this._hazardManager.getToxicPlants();
+      for (const plant of plants) {
+        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, plant.x, plant.y);
+        if (d < 80 && !plant._hitThisAttack) {
+          plant._hitThisAttack = true;
+          plant.takeDamage(25);
+          // Reset após o ataque terminar
+          this.time.delayedCall(400, () => { plant._hitThisAttack = false; });
+        }
+      }
+    }
+
+    // ── Pisos frágeis: step-on ao jogador sobrepor ─────────────
+    if (biomeId === 'CATACUMBAS_ECOANTES') {
+      const floors = this._hazardManager.getFragileFloors();
+      for (const floor of floors) {
+        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, floor.x, floor.y);
+        if (d < 24 && !floor.broken) {
+          floor.stepOn(this, this._activeEnemies, this._hazardManager.fragileTriggered);
+        }
+      }
+    }
+
+    // ── Portas ilusórias: verificação de overlap ────────────────
+    if (biomeId === 'BIBLIOTECA_DO_OCULTO') {
+      const doors = this._hazardManager.getIllusionDoors();
+      for (const door of doors) {
+        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, door.x, door.y);
+        if (d < 36 && !this._isTransitioning) {
+          // Probabilidade de ativação ao entrar na porta
+          if (!door._playerNear) {
+            door._playerNear = true;
+            // 30% de chance de ser ilusória
+            const rng = this._currentRoom.rng.fork(door.x + door.y);
+            if (rng.next() < 0.30) {
+              door.activate(this, (targetRoomIndex) => {
+                // Valida que o destino é acessível
+                const totalRooms = this.areaData.rooms.length;
+                const safeTarget = Math.min(Math.max(0, targetRoomIndex), totalRooms - 1);
+                // Evita softlock: não teleporta para sala de boss não visitada
+                const targetRoom = this.areaData.rooms[safeTarget];
+                if (targetRoom?.type === 'BOSS' && !this.defeatedBosses.has(`boss_${this.currentAreaIndex}`)) {
+                  // Redireciona para sala anterior segura
+                  this.hud.showNotification('A ilusão falhou...', '#796395', 1500);
+                } else {
+                  this.hud.showNotification('Ilusão! Você foi teletransportado.', '#796395', 2000);
+                  this._transitionToRoom(safeTarget, 'W');
+                }
+              });
+            }
+          }
+        } else {
+          door._playerNear = false;
+        }
+      }
+    }
+
+    // ── Recuo alterado por zona gravitacional ─────────────────
+    // O efeito GRAVITY em player.activeHazardEffect é lido em Player.js._doDodge()
+    // Nenhuma ação adicional necessária aqui.
   }
 }
