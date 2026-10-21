@@ -1,0 +1,57 @@
+name: Abismo - qualidade e regressao
+
+on:
+  push:
+    branches:
+      - main
+      - 'fix/**'
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Testes automatizados
+        run: npm test
+      - name: Build de producao
+        run: npm run build
+
+  browser-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Instalar dependencias do projeto
+        run: npm ci
+      - name: Instalar Playwright no ambiente de CI
+        run: |
+          npm install --no-save --package-lock=false playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Smoke do jogo no Chromium
+        run: node scripts/browser-smoke.mjs
+      - name: Preservar screenshots para inspecao visual
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: abismo-smoke-screenshots
+          path: artifacts/browser-smoke/
+          if-no-files-found: ignore

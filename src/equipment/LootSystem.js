@@ -43,11 +43,13 @@ export class LootSystem {
     for (const entry of lootTable) {
       if (entry.itemId) {
         // Chance base da tabela modificada por anomalia e elite
-        let dropChance = entry.chance;
+        let dropChance = entry.chance ?? 1;
         if (isAnomaly) dropChance = Math.min(1.0, dropChance * 1.5);
         else if (isElite) dropChance = Math.min(1.0, dropChance * 1.25);
         else if (isBoss) dropChance = 1.0; // Bosses garantem drop de itens de sua tabela
 
+        // Drops explicitamente Únicos pertencem a chefes, nunca a inimigos comuns.
+        if (entry.rarity === 'UNIQUE' && !isBoss) continue;
         if (this.rng.next() < dropChance) {
           const finalRarity = this._calculateRarity({
             baseRarity: entry.rarity ?? 'COMMON',
@@ -91,7 +93,10 @@ export class LootSystem {
    * Eleva a raridade com base na dificuldade real da ameaça enfrentada.
    */
   _calculateRarity({ baseRarity, enemyLevel, isElite, isBoss, isAnomaly, abyssDepth }) {
-    const RARITIES = ['COMMON', 'RARE', 'VERY_RARE', 'EPIC', 'LEGENDARY', 'UNIQUE'];
+    // UNIQUE é uma origem especial do GDD: sorte não pode promovê-la.
+    // Apenas drops com raridade UNIQUE explícita podem usar essa categoria.
+    if (baseRarity === 'UNIQUE') return 'UNIQUE';
+    const RARITIES = ['COMMON', 'RARE', 'VERY_RARE', 'EPIC', 'LEGENDARY'];
     let idx = RARITIES.indexOf(baseRarity);
     if (idx < 0) idx = 0;
 

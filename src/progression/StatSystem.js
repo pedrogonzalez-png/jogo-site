@@ -107,14 +107,19 @@ export class StatSystem {
   }
 
   allocate(attribute, points = 1) {
-    if (this.freePoints < points) return false;
+    const attributes = ['vigor', 'strength', 'dexterity', 'endurance', 'arcane'];
+    if (!attributes.includes(attribute) || !Number.isSafeInteger(points) ||
+        points <= 0 || points > this.freePoints) return false;
+
     this[attribute] += points;
     this.freePoints -= points;
     return true;
   }
 
   addFreePoints(amount) {
+    if (!Number.isSafeInteger(amount) || amount <= 0) return false;
     this.freePoints += amount;
+    return true;
   }
 
   serialize() {

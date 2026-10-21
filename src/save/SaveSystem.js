@@ -93,6 +93,7 @@ export class SaveSystem {
       defeatedBosses: [...(game.defeatedBosses ?? [])],
       abyssDepth:   game.abyssDepth ?? 0,
       abyssUniques: [...(game.abyssUniqueObtained ?? [])],
+      openedChests: [...(game.openedChests ?? [])],
       relics: {
         equipped: [...(game.equippedRelics ?? game.player?.relics ?? [])],
       },
@@ -110,10 +111,18 @@ export class SaveSystem {
     game.seed = data.seed;
     game.xpSystem.deserialize(data.xp);
     game.levelSystem.level = data.level ?? 1;
-    game.statSystem.deserialize(data.stats);
-    game.weaponSystem.deserialize(data.weapon);
-    game.armorSystem.deserialize(data.armor);
-    game.inventorySystem.deserialize(data.inventory);
+    // Saves antigos podem não conter todas as chaves: usar defaults seguros.
+    game.statSystem.deserialize(data.stats ?? {});
+    game.weaponSystem.deserialize(data.weapon ?? {});
+    game.armorSystem.deserialize(data.armor ?? {});
+    game.inventorySystem.deserialize(data.inventory ?? {});
+    // Recuperar histórico de Únicos de saves antigos que só guardavam
+    // o item equipado, mesmo quando ele não está na lista do inventário.
+    for (const item of [game.weaponSystem.equipped, ...Object.values(game.armorSystem.slots)]) {
+      if (item?.rarity === 'UNIQUE' && typeof item.id === 'string') {
+        game.inventorySystem.uniqueItemIds.add(item.id);
+      }
+    }
     game.healCharges    = data.healCharges    ?? 3;
     game.maxHealCharges = data.maxHealCharges ?? 3;
     game.healAmount     = data.healAmount     ?? 40;
@@ -123,6 +132,7 @@ export class SaveSystem {
     game.defeatedBosses   = new Set(data.defeatedBosses ?? []);
     game.abyssDepth        = data.abyssDepth ?? 0;
     game.abyssUniqueObtained = new Set(data.abyssUniques ?? []);
+    game.openedChests = new Set(data.openedChests ?? []);
     game.equippedRelics    = Array.isArray(data.relics?.equipped)
       ? [...data.relics.equipped]
       : (Array.isArray(data.equippedRelics) ? [...data.equippedRelics] : []);

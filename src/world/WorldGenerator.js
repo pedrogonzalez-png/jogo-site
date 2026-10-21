@@ -42,10 +42,13 @@ export class WorldGenerator {
     // Seleciona bioma determinístico baseado em forcedBiomeId ou no índice da área
     let areaBiomeId = this.forcedBiomeId;
     if (!areaBiomeId) {
-      areaBiomeId = BIOME_IDS[areaIndex % BIOME_IDS.length] ?? 'VALE_DAS_CINZAS';
+      areaBiomeId = BIOME_IDS[((areaIndex % BIOME_IDS.length) + BIOME_IDS.length) % BIOME_IDS.length] ?? BIOME_IDS[0];
     }
     this.biomeId = areaBiomeId;
-    this.biome = BIOMES[areaBiomeId] ?? BIOMES['VALE_DAS_CINZAS'];
+    // VALE_DAS_CINZAS era um ID histórico inexistente: nunca deixar biome undefined.
+    this.biome = BIOMES[areaBiomeId] ?? BIOMES[BIOME_IDS[0]];
+    if (!this.biome) throw new Error('Nenhum bioma válido foi definido.');
+    this.biomeId = this.biome.id;
 
     // ── 1. Espinha Principal Obrigatória (Critical Path) ─────
     // ENTRANCE(0) -> NORMAL(1) -> NORMAL(2) -> SANCTUARY(3) -> NORMAL(4) -> NORMAL(5) -> ELITE(6) -> BOSS(7)

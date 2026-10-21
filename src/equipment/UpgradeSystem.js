@@ -33,7 +33,13 @@ export class UpgradeSystem {
     xpSystem.stored -= cost;
     item.upgradeLevel = (item.upgradeLevel ?? 0) + 1;
 
-    const newRarity = isUnique ? 'UNIQUE' : UpgradeSystem.rarityByUpgrade(item.upgradeLevel);
+    const rarities = ['COMMON', 'RARE', 'VERY_RARE', 'EPIC', 'LEGENDARY', 'UNIQUE'];
+    const rarityFromUpgrade = UpgradeSystem.rarityByUpgrade(item.upgradeLevel);
+    const previousRank = rarities.indexOf(item.rarity);
+    const upgradeRank = rarities.indexOf(rarityFromUpgrade);
+    const newRarity = isUnique ? 'UNIQUE'
+      : rarities[Math.max(0, previousRank, upgradeRank)];
+    item.rarity = newRarity;
 
     return {
       success: true,

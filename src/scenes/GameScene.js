@@ -71,6 +71,7 @@ export class GameScene extends Phaser.Scene {
     this.defeatedBosses  = new Set();
     this.abyssDepth      = 0;
     this.abyssUniqueObtained = new Set();
+    this.openedChests = new Set();
     this.discoveredSanctuaries = [];
     this.currentAreaIndex  = 0;
     this.currentRoomIndex  = 0;
@@ -81,6 +82,11 @@ export class GameScene extends Phaser.Scene {
     if (this._loadSave && this._saveSystem) {
       this._saveSystem.load(this._saveSlot).then(data => {
         if (data) this._saveSystem.applySaveData(data, this);
+        else this._initDefault(); // Slot inexistente não pode começar sem equipamento.
+        this._initWorld();
+      }).catch(error => {
+        console.error('Falha ao carregar save:', error);
+        this._initDefault();
         this._initWorld();
       });
     } else {
@@ -111,6 +117,8 @@ export class GameScene extends Phaser.Scene {
     // ── Mundo procedural ─────────────────────────────────────
     this.seedSystem = new SeedSystem(this.seed);
     this.worldGen   = new WorldGenerator(this.seedSystem);
+    // Drops usam uma stream derivada da seed, nunca Date.now().
+    this.lootSystem = new LootSystem(this.seedSystem.areaRNG(this.currentAreaIndex).fork(0x4c4f4f54));
     this.areaData   = this.worldGen.generateArea(this.currentAreaIndex);
 
     this._activeDrops       = [];
@@ -341,7 +349,8 @@ export class GameScene extends Phaser.Scene {
       this._spawnBoss(room);
     } else if (['NORMAL', 'ELITE', 'ENTRANCE'].includes(room.type) && !room.cleared) {
       this._spawnEnemies(room);
-    } else if (room.type === 'CHEST') {
+    } else if (room.type === 'CHEST' &&
+               !this.openedChests.has(`${this.currentAreaIndex}:${room.id}`)) {
       this._spawnChest(room);
     }
   }
@@ -355,11 +364,26 @@ export class GameScene extends Phaser.Scene {
     const pool = isElite ? biome.elitePool : biome.enemyPool;
     const tileW = room.data.tileW;
     const tileH = room.data.tileH;
+    const grid = room.data.grid;
+    const centerX = Math.floor(tileW / 2) * TILE;
+    const centerY = Math.floor(tileH / 2) * TILE;
+    // Proteger os pontos de entrada nas quatro direções (a sala é montada
+    // antes de posicionar o jogador durante uma transição).
+    const entrances = [
+      [6 * TILE, centerY], [2.5 * TILE, centerY],
+      [(tileW - 3.5) * TILE, centerY],
+      [centerX, 2.5 * TILE], [centerX, (tileH - 3.5) * TILE],
+    ];
+    const occupied = [];
 
     for (let i = 0; i < count; i++) {
       const templateId = rng.pick(pool);
-      const template   = { ...ENEMY_TEMPLATES[templateId] };
-      if (!template) continue;
+      const baseTemplate = ENEMY_TEMPLATES[templateId];
+      if (!baseTemplate) {
+        console.warn(`Template de inimigo ausente: ${templateId}`);
+        continue;
+      }
+      const template = { ...baseTemplate };
 
       // Scalonamento por profundidade do Abismo
       if (this.abyssDepth > 0) {
@@ -373,7 +397,10 @@ export class GameScene extends Phaser.Scene {
 
       // Anomalia rara
       if (rng.next() < (biome.anomalyChance ?? 0.05)) {
-        template.level   = Math.round(template.level   * rng.next() * 3 + 1.5);
+        // Multiplicador 1.5x..4.5x sobre o nível original;
+        // a expressão antiga multiplicava por RNG antes de somar 1.5,
+        // podendo reduzir um inimigo de alto nível para nível 2.
+        template.level   = Math.max(1, Math.round(template.level * (1.5 + rng.next() * 3)));
         template.hp      = Math.round(template.hp      * 2.5);
         template.attack  = Math.round(template.attack  * 2);
         template.xp      = Math.round(template.xp      * 5);
@@ -387,17 +414,27 @@ export class GameScene extends Phaser.Scene {
         template.name = `[PERIGO +${template.level - this.levelSystem.level}] ${template.name}`;
       }
 
-      // Posição dentro da sala (evitar paredes e evitar nascer em cima do player)
-      let ex, ey;
-      if (room.type === 'ENTRANCE') {
-        // Posicionados na metade leste da sala
-        ex = Math.floor(tileW * 0.72) * TILE;
-        ey = Math.floor(tileH * (i === 0 ? 0.35 : 0.65)) * TILE;
-      } else {
-        ex = rng.int(4, tileW - 5) * TILE;
-        ey = rng.int(3, tileH - 4) * TILE;
+      // Spawn determinístico: somente chão livre, longe das entradas,
+      // evitando paredes, corpo do jogador e outros inimigos.
+      let position = null;
+      for (let attempt = 0; attempt < 160; attempt++) {
+        const tx = rng.int(4, tileW - 5);
+        const ty = rng.int(3, tileH - 4);
+        if (grid?.[ty]?.[tx] !== TILE_TYPES.FLOOR) continue;
+        const ex = (tx + 0.5) * TILE;
+        const ey = (ty + 0.5) * TILE;
+        if (entrances.some(([px, py]) => Math.hypot(ex - px, ey - py) < 140)) continue;
+        if (this.player && Math.hypot(ex - this.player.x, ey - this.player.y) < 140) continue;
+        if (occupied.some(([px, py]) => Math.hypot(ex - px, ey - py) < 72)) continue;
+        position = [ex, ey];
+        break;
       }
-
+      if (!position) {
+        console.warn(`Sem tile livre seguro para inimigo na sala ${room.id}`);
+        continue;
+      }
+      const [ex, ey] = position;
+      occupied.push(position);
       const enemy = new Enemy(this, ex, ey, template);
       this._activeEnemies.push(enemy);
       this.enemiesGroup.add(enemy);
@@ -410,8 +447,13 @@ export class GameScene extends Phaser.Scene {
     const bx = Math.floor(tileW / 2) * TILE;
     const by = Math.floor(tileH / 2) * TILE;
 
-    const bossId = this.areaData.biome.bossPool[0] || 'ashen_lord';
-    const template = { ...BOSS_TEMPLATES[bossId] };
+    const bossId = this.areaData.biome.bossPool?.[0] ?? 'senhor_das_cinzas';
+    const baseTemplate = BOSS_TEMPLATES[bossId];
+    if (!baseTemplate) {
+      console.error(`Template de chefe ausente: ${bossId}`);
+      return;
+    }
+    const template = { ...baseTemplate };
 
     this._activeBoss = new Boss(this, bx, by, template);
     this.enemiesGroup.add(this._activeBoss);
@@ -573,7 +615,10 @@ export class GameScene extends Phaser.Scene {
 
     this.cameras.main.setBounds(0, 0, roomW, roomH);
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
-    this.cameras.main.setZoom(1.5);
+    // As salas usam resolução lógica de 1280×720. Zoom 1 preserva
+    // a leitura integral da sala e impede que o HUD/inventário em
+    // coordenadas de tela sejam cortados pela transformação da câmera.
+    this.cameras.main.setZoom(1);
   }
 
   _setupKeys() {
@@ -687,14 +732,8 @@ export class GameScene extends Phaser.Scene {
     this._isTransitioning = true;
     this.player.body.setVelocity(0, 0);
 
-    // Illusion logic for BIBLIOTECA_DO_OCULTO
-    if (this.areaData.biome.id === 'BIBLIOTECA_DO_OCULTO' && this._currentRoom) {
-      const rng = this._currentRoom.rng.fork(8);
-      if (rng.next() < 0.25) { // 25% chance of illusory door redirecting to a random visited room
-         targetIndex = rng.pick(Array.from(this.areaData.rooms.keys()));
-         this.hud.showNotification('Ilusão Ativada', '#796395', 2000);
-      }
-    }
+    // Portas comuns seguem sempre o grafo validado. O teleporte ilusório
+    // ocorre exclusivamente no hazard IllusionDoor (_updateEnvironmentalInteractions).
 
     this.cameras.main.fadeOut(180, 0, 0, 0);
     this.cameras.main.once('camerafadeoutcomplete', () => {
@@ -808,6 +847,17 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  _ensureCombatRecord(enemy) {
+    // Primeiro contato define a diferença de nível; ataques seguintes,
+    // efeitos elementais e golpes fatais não sobrescrevem a fotografia.
+    if (!enemy || enemy._combatRecord || enemy.getData?.('combatRecord')) return;
+    const record = this.abyssChallenge.recordCombatStart(
+      this.levelSystem.level, enemy.level
+    );
+    enemy._combatRecord = record;
+    enemy.setData?.('combatRecord', record);
+  }
+
   _processPlayerAttackZone(x, y, radius, attackData, type) {
     if (!this._activeEnemies) return;
 
@@ -816,15 +866,15 @@ export class GameScene extends Phaser.Scene {
       const dist = Phaser.Math.Distance.Between(x, y, enemy.x, enemy.y);
       if (dist > radius + 16) continue;
 
-      // Calcula record de Abismo no início do hit
-      const combatRecord = this.abyssChallenge.recordCombatStart(
-        this.levelSystem.level, enemy.level
-      );
+      // Registrar antes do hit, inclusive quando ele for fatal.
+      this._ensureCombatRecord(enemy);
 
       // Resolve hit via CombatSystem
       const hitResult = CombatSystem.processHit(
         this.player, enemy, type,
         {
+          damage:        (attackData.damage ?? this.player.effectiveAttack) +
+                         (this.armorSystem.totalStats.attack ?? 0),
           element:       attackData.element,
           elementBuildup: attackData.elementBuildup,
           equilDamage:    attackData.equilDamage,
@@ -854,10 +904,6 @@ export class GameScene extends Phaser.Scene {
           hitResult.statusActivated.element, '#ff8833', 1200
         );
       }
-
-      // Armazena record para recompensa de Abismo ao matar
-      enemy.setData?.('combatRecord', combatRecord);
-      if (!enemy.setData) enemy._combatRecord = combatRecord;
 
       // Feedback de impacto físico (knockback)
       if (enemy.body && !enemy.isDead) {
@@ -1062,19 +1108,28 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  _clearDeathScreen() {
+    for (const obj of this._deathScreenObjects ?? []) {
+      if (obj?.active) obj.destroy();
+    }
+    this._deathScreenObjects = [];
+  }
+
   _showDeathScreen() {
     const MONO = '"Courier New", "Consolas", monospace';
     const W = this.cameras.main.width;
     const H = this.cameras.main.height;
 
+    this._clearDeathScreen();
     this.cameras.main.fadeOut(600, 0, 0, 0);
     this.cameras.main.once('camerafadeoutcomplete', () => {
-      // Tela de morte
+      // Agrupa todos os componentes da tela para limpeza no respawn.
       const overlay = this.add.rectangle(
-        this.cameras.main.scrollX + W / 2,
-        this.cameras.main.scrollY + H / 2,
+        W / 2,
+        H / 2,
         W, H, 0x000000, 0.95
       ).setDepth(500).setScrollFactor(0);
+      this._deathScreenObjects = [overlay];
 
       // Morte em ASCII art
       const deathArt = [
@@ -1083,34 +1138,44 @@ export class GameScene extends Phaser.Scene {
         '   ╚╝ ╚═╝╚═╝╚═╝  ╩ ╩╚═╝╩╚═╩╚═╚═╝╚═╝  ',
       ];
       deathArt.forEach((line, i) => {
-        this.add.text(W / 2, H / 2 - 80 + i * 18, line, {
+        const text = this.add.text(W / 2, H / 2 - 80 + i * 18, line, {
           fontFamily: MONO, fontSize: '14px', color: '#881111',
         }).setOrigin(0.5).setScrollFactor(0).setDepth(501);
+        this._deathScreenObjects.push(text);
       });
 
-      this.add.text(W / 2, H / 2 - 10, `$ XP perdida no local: ${this.xpSystem.lost}`, {
+      const xpLabel = this.add.text(W / 2, H / 2 - 10, `$ XP perdida no local: ${this.xpSystem.lost}`, {
         fontFamily: MONO, fontSize: '14px', color: '#ffcc00',
       }).setOrigin(0.5).setScrollFactor(0).setDepth(501);
+      this._deathScreenObjects.push(xpLabel);
 
       const respawnBtn = this.add.text(W / 2, H / 2 + 40, '> Renascer no Santuário <', {
         fontFamily: MONO, fontSize: '16px', color: '#ffddaa',
         padding: { x: 12, y: 6 },
       }).setOrigin(0.5).setScrollFactor(0).setDepth(501).setInteractive();
 
+      this._deathScreenObjects.push(respawnBtn);
       respawnBtn.on('pointerover', () => respawnBtn.setColor('#ffffff'));
       respawnBtn.on('pointerout',  () => respawnBtn.setColor('#ffddaa'));
       respawnBtn.on('pointerup', () => {
-        overlay.destroy();
+        this._clearDeathScreen();
         this._respawnAtSanctuary();
       });
 
       const menuBtn = this.add.text(W / 2, H / 2 + 80, '> Menu Principal <', {
         fontFamily: MONO, fontSize: '12px', color: '#666666',
       }).setOrigin(0.5).setScrollFactor(0).setDepth(501).setInteractive();
+      this._deathScreenObjects.push(menuBtn);
       menuBtn.on('pointerover', () => menuBtn.setColor('#aaaaaa'));
       menuBtn.on('pointerout',  () => menuBtn.setColor('#666666'));
 
-      menuBtn.on('pointerup', () => this.scene.start('MainMenuScene'));
+      menuBtn.on('pointerup', () => {
+        this._clearDeathScreen();
+        this.scene.start('MainMenuScene');
+      });
+      // fadeOut escurece TODA a câmera (inclusive a UI que acabou de ser
+      // criada). Restaurar o efeito para que os botões voltem a aparecer.
+      this.cameras.main.fadeIn(200, 0, 0, 0);
     });
   }
 
@@ -1148,6 +1213,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   _clearRoom() {
+    // Projéteis são persistidos separadamente da lista de GameObjects.
+    // Esvaziar a lista evita que objetos da sala antiga continuem colidindo
+    // com inimigos/jogador depois da transição.
+    for (const projectile of this._activeProjectiles ?? []) {
+      if (projectile.obj?.active) projectile.obj.destroy();
+    }
+    this._activeProjectiles = [];
+
     // ── Destrói perigos ambientais antes de qualquer outra coisa ──
     if (this._hazardManager) {
       this._hazardManager.destroy();
@@ -1255,6 +1328,7 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.once('camerafadeoutcomplete', () => {
       this._clearRoom();
       this.areaData = this.worldGen.generateArea(this.currentAreaIndex);
+      this.lootSystem = new LootSystem(this.seedSystem.areaRNG(this.currentAreaIndex).fork(0x4c4f4f54));
       this._buildCurrentRoom();
 
       const startRoom = this.areaData.rooms[0];
@@ -1335,7 +1409,10 @@ export class GameScene extends Phaser.Scene {
         upgradeLevel: Math.max(baseWeapon.upgradeLevel ?? 0, bonusUpgrade),
         itemLevel,
       };
-      this.inventorySystem.add(item, 'weapons');
+      if (!this.inventorySystem.add(item, 'weapons')) {
+        this.hud.showNotification('Item Único já obtido', '#ffaa66', 2200);
+        return;
+      }
       this.hud.showNotification(
         `⚔ ${item.name} +${item.upgradeLevel} (${item.rarity}) [Nv.${itemLevel}]`,
         '#ffdd88', 3000
@@ -1349,7 +1426,11 @@ export class GameScene extends Phaser.Scene {
                  : drop.itemId.includes('chest') ? 'chest'
                  : drop.itemId.includes('gloves') ? 'gloves' : 'legs';
       const piece = createArmorPiece(slot, drop.rarity ?? 'COMMON', null, itemLevel);
-      this.inventorySystem.add(piece, 'armors');
+      if (piece.rarity === 'UNIQUE') piece.id = drop.itemId;
+      if (!this.inventorySystem.add(piece, 'armors')) {
+        this.hud.showNotification('Item Único já obtido', '#ffaa66', 2200);
+        return;
+      }
       this.hud.showNotification(
         `🛡 ${piece.name} (${piece.rarity}) [Nv.${itemLevel}]`,
         '#44ffaa', 3000
@@ -1358,7 +1439,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   _openChest(x, y) {
-    const rng = this.seedSystem.areaRNG(this.currentAreaIndex + 100);
+    const chestId = `${this.currentAreaIndex}:${this._currentRoom.id}`;
+    if (this.openedChests.has(chestId)) return;
+    this.openedChests.add(chestId);
+    // O conteúdo do baú é estável para a mesma seed e sala.
+    const rng = this._currentRoom.rng.fork(0x43484553);
     const isArmor = rng.next() < 0.45;
     const rarityRoll = rng.next();
     const rarity = rarityRoll < 0.05 ? 'EPIC' : rarityRoll < 0.25 ? 'RARE' : 'COMMON';
@@ -1369,16 +1454,21 @@ export class GameScene extends Phaser.Scene {
     if (isArmor) {
       const slot = rng.pick(['helmet', 'chest', 'gloves', 'legs']);
       const piece = createArmorPiece(slot, rarity, rng, areaLevel);
-      this.inventorySystem.add(piece, 'armors');
+      if (!this.inventorySystem.add(piece, 'armors')) return;
       this.hud.showNotification(`📦 ${piece.name} (${rarity}) [Nv.${areaLevel}]`, '#88ddff', 3000);
     } else {
-      const weaponIds = Object.keys(WEAPONS);
+      // Baús aleatórios não criam cópias comuns de armas exclusivas de chefes.
+      const weaponIds = Object.keys(WEAPONS).filter(id => WEAPONS[id].rarity !== 'UNIQUE');
       const id = rng.pick(weaponIds);
       const item = { ...WEAPONS[id], rarity, itemLevel: areaLevel };
       this.inventorySystem.add(item, 'weapons');
       this.hud.showNotification(`📦 ${item.name} (${rarity}) [Nv.${areaLevel}]`, '#88ddff', 3000);
     }
-    this._floatXP(x, y - 20, 25 + areaLevel * 4);
+    const chestXP = 25 + areaLevel * 4;
+    this.xpSystem.addXP(chestXP);
+    this._floatXP(x, y - 20, chestXP);
+    // Persistir o estado do baú e os itens/XP no mesmo snapshot.
+    this._autosave();
   }
 
   _floatXP(x, y, amount) {
@@ -1466,6 +1556,7 @@ export class GameScene extends Phaser.Scene {
           this._deathOrb.destroy();
           this._deathOrb = null;
           this.hud.showNotification(`+${recovered} XP Recuperada!`, '#ffdd00', 2000);
+          this._autosave();
         };
       }
     }
@@ -1655,6 +1746,8 @@ export class GameScene extends Phaser.Scene {
               critChance: this.player.critChance,
               critMultiplier: this.player.critMultiplier,
             });
+            // Magias/projéteis também podem matar no primeiro contato.
+            this._ensureCombatRecord(enemy);
             enemy.takeDamage(result.finalDamage);
             enemy.balanceSystem?.takePoiseDamage(sd.equilDamage ?? 20);
             if (sd.element && enemy.statusSystem) {

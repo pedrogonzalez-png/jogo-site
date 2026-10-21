@@ -3,7 +3,19 @@
 > Atualizada em **2026-10-21** para uso no Antigravity IDE. **Esta entrega reorganiza e amplia documentação, não código.**
 > O projeto utiliza **Phaser 4.2.1, Vite 8.3 e JavaScript ESM**, com exploração top-down, combate souls-like, biomas procedurais e direção artística ASCII de alta densidade.
 
-## 1. Comece aqui
+## 1. Comece aqui## Auditoria de código de 21/10/2026**[Relatório final da auditoria (24 testes + Chromium)](06-auditoria/RELATORIO_FINAL_2026-10-21.md)** — correções consolidadas, resultados reais do navegador, pendências e próximo passo de QA.
+
+
+
+**[Relatório técnico de auditoria — 45 fontes JavaScript inspecionadas](06-auditoria/AUDITORIA_CODIGO_2026-10-21.md)**: problemas identificados, correções propostas no PR #3, evidências reais e lacunas ainda existentes.
+
+**[Matriz de evidências dos 55 IDs históricos](06-auditoria/MATRIZ_55_TAREFAS.md)**: relaciona cada tarefa antiga à evidência atual, sem confundir status histórico com teste recente.
+
+A branch de auditoria introduziu testes automatizados com **21 casos aprovados** e build Vite aprovado no [GitHub Actions](https://github.com/pedrogonzalez-png/jogo-site/actions/runs/39677024455). **Ainda não há validação visual/jogável completa dos dez biomas.** As correções só chegam à `main` após revisão e merge do PR #3.
+
+---
+
+
 
 | Preciso de... | Abrir |
 |---|---|

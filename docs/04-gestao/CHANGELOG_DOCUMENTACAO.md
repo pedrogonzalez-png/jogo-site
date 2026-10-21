@@ -1,5 +1,31 @@
 # Changelog da documentação — Abismo
 
+## 2026-10-21 — revisão das capturas de Chromium e correções visuais
+
+- [CI 39680748262](https://github.com/pedrogonzalez-png/jogo-site/actions/runs/39680748262) passou com 24 testes, build e browser smoke após os ajustes finais.
+- Foram abertas as capturas; confirmados o inventário cortado pelo zoom 1,5× e a tela de morte totalmente preta. Corrigidos com zoom 1 e restauração de fade; screenshots posteriores mostram interface completa e modal legível.
+- O fundo dos tiles passou do preto absoluto a um cinza bem escuro; **contraste geral, legibilidade de fontes e animações ainda exigem QA visual**.
+- Achados AUD-026 a AUD-029 documentados no [relatório final](../06-auditoria/RELATORIO_FINAL_2026-10-21.md). Nenhuma alteração feita na matriz original da arte do cavaleiro.
+
+## 2026-10-21 — encerramento da fase técnica da auditoria (PR #3)
+
+- O relatório final foi consolidado em [docs/06-auditoria/RELATORIO_FINAL_2026-10-21.md](../06-auditoria/RELATORIO_FINAL_2026-10-21.md).
+- Resultado comprovado no commit `1a3bf089d`: **24 testes aprovados**, build Vite aprovado, smoke real com Chromium aprovado e screenshots de menu, gameplay, inventário, morte e respawn.
+- Mais quatro defeitos concretos corrigidos: overlay de morte remanescente, projéteis persistentes após transição, multiplicador de nível de anomalia incorreto e baú sem autosave após recompensa.
+- Continua pendente QA jogável profundo em dez biomas, performance/visual humano, todas as habilidades/chefes, recompensas +200, três famílias de armas, conteúdo de áudio/ghosts e migrações antigas complexas.
+- A branch permanece isolada da `main`; **não houve merge automático**.
+
+
+## 2026-10-21 — auditoria real do código e evidências (PR #3)
+
+- Foram inspecionados estaticamente **45 arquivos JavaScript** em `src/`, com atualizações de gameplay, inventário, loot, geração de salas e saves propostas em branch separada.
+- Adicionada [auditoria técnica detalhada](../06-auditoria/AUDITORIA_CODIGO_2026-10-21.md) com defeitos observados, correções efetuadas, limitações e casos de QA não executados.
+- Adicionada [matriz dos 55 IDs legados](../06-auditoria/MATRIZ_55_TAREFAS.md), sem alterar indevidamente o snapshot de conclusão de 09/10.
+- Introduzidos 3 arquivos de testes e CI (21 casos aprovados, 0 falhas, build Vite aprovado); **nenhuma validação jogável ou de FPS feita até aqui**.
+- Lacunas documentadas: 6 famílias de armas concretas versus 9 previstas; recompensa especial +200 incompleta; animações do cavaleiro a revisar; áudio/replays sem confirmação de integração real.
+- As correções propostas pertencem ao PR #3, separado do merge documental anterior.
+
+
 ## 2026-10-21 — organização e preparação para Antigravity
 
 **Natureza:** alterações exclusivas em Markdown. Sem implementação, build novo ou execução do jogo.

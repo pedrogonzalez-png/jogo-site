@@ -1,5 +1,7 @@
 # Registro de divergências — código atual x documentação histórica
 
+> **Atualização técnica de 21/10/2026:** revisão de 45 arquivos fonte e correções propostas estão detalhadas em [Auditoria de código](../06-auditoria/AUDITORIA_CODIGO_2026-10-21.md). A [matriz dos 55 IDs](../06-auditoria/MATRIZ_55_TAREFAS.md) registra o estado histórico e a evidência real separadamente; não use afirmações históricas para concluir uma funcionalidade.
+
 > **Leitura estática parcial do código em 2026-10-21** (branch main, antes desta alteração apenas documental). Isto comprova presença de estruturas no código, **não** aprovação de comportamento no navegador.
 > Contexto: [auditoria original de 2026-10-09](../05-historico/AUDITORIA_ORIGINAL_2026-10-09.md) · [Antigravity](../ANTIGRAVITY_LEIA_PRIMEIRO.md).
 

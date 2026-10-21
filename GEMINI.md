@@ -1,5 +1,9 @@
 # Abismo — instruções de contexto para Gemini / Antigravity IDE
 
+> **RELATÓRIO FINAL DE AUDITORIA (21/10/2026):** `docs/06-auditoria/RELATORIO_FINAL_2026-10-21.md` — 24 testes e smoke real Chromium aprovados, com QA exaustivo nos dez biomas ainda pendente. Não reiniciar auditoria já aplicada; conferir PR #3 antes de novas mudanças.
+
+> **AUDITORIA TÉCNICA ATUAL (2026-10-21):** leia também `docs/06-auditoria/AUDITORIA_CODIGO_2026-10-21.md` e `docs/06-auditoria/MATRIZ_55_TAREFAS.md`. Elas registram as alterações de código, 21 testes automatizados aprovados e pendências como validação visual no navegador. **Não marcar o jogo inteiro como validado apenas pelo CI.**
+
 Este repositório é um RPG de ação top-down com **Phaser 4.2.1 + Vite 8.3 + JavaScript ES Modules**. **Não usar React** nem reescrever o motor.
 
 ## Antes de editar qualquer arquivo

@@ -155,13 +155,18 @@ export class InventoryUI {
 
           toggleBtn.on('pointerup', () => {
             if (disabled) {
-              armor.disabledSlots.delete(slot);
-            } else {
-              if (armor.disabledSlots.size >= 2) {
-                // Remove o mais antigo para manter exatamente 2 desativados
-                const first = armor.disabledSlots.values().next().value;
-                armor.disabledSlots.delete(first);
+              // Ao ativar um slot, outro precisa ser desativado no lugar:
+              // penalidade de arma acima do nível exige SEMPRE duas peças.
+              const replacement = slots.find(candidate =>
+                candidate !== slot && !armor.disabledSlots.has(candidate)
+              );
+              if (replacement) {
+                armor.disabledSlots.delete(slot);
+                armor.disabledSlots.add(replacement);
               }
+            } else {
+              const first = armor.disabledSlots.values().next().value;
+              if (first) armor.disabledSlots.delete(first);
               armor.disabledSlots.add(slot);
             }
             player.refreshStatsFromAttributes();
@@ -309,7 +314,11 @@ export class InventoryUI {
         }).setScrollFactor(0).setDepth(302).setInteractive();
 
         equipBtn.on('pointerup', () => {
+          // Transfere a arma, em vez de conservar uma cópia extra no inventário.
+          const previous = systems.weapon.equipped;
           systems.weapon.equip(w);
+          inv.remove(w.instanceId, 'weapons');
+          if (previous) inv.add(previous, 'weapons', { transferOwned: true });
           player.checkWeaponLevelPenalty();
           this.scene.events.emit('weapon:equipped', { weapon: w });
           this._render(player, systems);
@@ -350,7 +359,7 @@ export class InventoryUI {
           const oldPiece = systems.armor.slots[piece.slot];
           systems.armor.equip(piece);
           inv.remove(piece.instanceId, 'armors');
-          if (oldPiece) inv.add(oldPiece, 'armors');
+          if (oldPiece) inv.add(oldPiece, 'armors', { transferOwned: true });
           player.refreshStatsFromAttributes();
           this._render(player, systems);
         });

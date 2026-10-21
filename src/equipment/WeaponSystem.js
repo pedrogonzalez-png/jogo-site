@@ -120,13 +120,18 @@ export class WeaponSystem {
   /** Raridade efetiva considerando upgrade */
   get effectiveRarity() {
     if (!this.equipped) return 'COMMON';
+    // O nível de upgrade nunca rebaixa uma arma Única para outra raridade.
+    if (this.equipped.rarity === 'UNIQUE') return 'UNIQUE';
     const thresholds = BALANCE.EQUIPMENT.RARITY_THRESHOLDS;
     const upg = this.equipped.upgradeLevel ?? 0;
-    if (upg >= thresholds.LEGENDARY) return 'LEGENDARY';
-    if (upg >= thresholds.EPIC)      return 'EPIC';
-    if (upg >= thresholds.VERY_RARE) return 'VERY_RARE';
-    if (upg >= thresholds.RARE)      return 'RARE';
-    return this.equipped.rarity ?? 'COMMON';
+    const byLevel = upg >= thresholds.LEGENDARY ? 'LEGENDARY'
+      : upg >= thresholds.EPIC ? 'EPIC'
+      : upg >= thresholds.VERY_RARE ? 'VERY_RARE'
+      : upg >= thresholds.RARE ? 'RARE' : 'COMMON';
+    const rarities = ['COMMON', 'RARE', 'VERY_RARE', 'EPIC', 'LEGENDARY', 'UNIQUE'];
+    return rarities[Math.max(
+      0, rarities.indexOf(this.equipped.rarity), rarities.indexOf(byLevel)
+    )];
   }
 
   serialize() {

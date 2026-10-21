@@ -1,5 +1,7 @@
 # Backlog operacional por marcos — Antigravity IDE
 
+> **Leitura de entrada obrigatória após auditoria de código:** [20 achados/correções com evidências](../06-auditoria/AUDITORIA_CODIGO_2026-10-21.md) · [matriz de 55 tarefas](../06-auditoria/MATRIZ_55_TAREFAS.md). A branch `fix/auditoria-integral-2026-10-21` passou por 21 testes automatizados e build no GitHub Actions. **As tarefas de gameplay/arte ainda exigem verificação no navegador.** Há **6 famílias de armas definidas** no código, não as 9 desejadas, e os prêmios concretos da faixa +200 ainda estão incompletos.
+
 > **Atualizado em 2026-10-21.** Este backlog divide trabalho em **56 subtarefas operacionais propostas**, distribuídas em sete arquivos. **Não são 56 novas funcionalidades**: muitas verificam, aprofundam ou implementam as 55 tarefas históricas da [lista original](../TAREFAS_ABISMO.md). **Não somar 55 + 56 para medir progresso.**
 >
 > **Estado inicial das subtarefas:** a auditar, a executar ou futuro. Nenhuma tarefa foi implementada/testada em código por esta edição documental.

@@ -1,5 +1,9 @@
 # ABISMO — CHECKLIST MESTRE DE DESENVOLVIMENTO
 
+> **Evidência nova (21/10/2026):**> **Encerramento de auditoria:** [relatório final com 24 testes + smoke Chromium](06-auditoria/RELATORIO_FINAL_2026-10-21.md). A validação integral dos 55 itens pelo navegador **continua pendente**.
+ [auditoria de código e correções](06-auditoria/AUDITORIA_CODIGO_2026-10-21.md) · [matriz de todos os 55 IDs](06-auditoria/MATRIZ_55_TAREFAS.md).
+> Os percentuais e selos de "validado" a seguir são um **snapshot de 09/10**, preservado como histórico. **21 testes automatizados** e build passaram na branch de auditoria, mas não validam os 55 requisitos integralmente.
+
 > **Data da última revisão:** 2026-10-09
 > **Estado geral do projeto:** Protótipo jogável funcional com base de arquitetura procedural e combate concluídas. Os 10 biomas, chefes base e mecânicas ambientais operam, porém os sistemas de progressão escalável (pools de inimigos), variação de mecânicas de ataque de armas e refinamentos visuais encontram-se em estágio inicial ou pendentes.
 > 
