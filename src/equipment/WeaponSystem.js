@@ -120,6 +120,8 @@ export class WeaponSystem {
   /** Raridade efetiva considerando upgrade */
   get effectiveRarity() {
     if (!this.equipped) return 'COMMON';
+    // O nível de upgrade nunca rebaixa uma arma Única para outra raridade.
+    if (this.equipped.rarity === 'UNIQUE') return 'UNIQUE';
     const thresholds = BALANCE.EQUIPMENT.RARITY_THRESHOLDS;
     const upg = this.equipped.upgradeLevel ?? 0;
     if (upg >= thresholds.LEGENDARY) return 'LEGENDARY';
