@@ -615,7 +615,10 @@ export class GameScene extends Phaser.Scene {
 
     this.cameras.main.setBounds(0, 0, roomW, roomH);
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
-    this.cameras.main.setZoom(1.5);
+    // As salas usam resolução lógica de 1280×720. Zoom 1 preserva
+    // a leitura integral da sala e impede que o HUD/inventário em
+    // coordenadas de tela sejam cortados pela transformação da câmera.
+    this.cameras.main.setZoom(1);
   }
 
   _setupKeys() {
@@ -1170,6 +1173,9 @@ export class GameScene extends Phaser.Scene {
         this._clearDeathScreen();
         this.scene.start('MainMenuScene');
       });
+      // fadeOut escurece TODA a câmera (inclusive a UI que acabou de ser
+      // criada). Restaurar o efeito para que os botões voltem a aparecer.
+      this.cameras.main.fadeIn(200, 0, 0, 0);
     });
   }
 
