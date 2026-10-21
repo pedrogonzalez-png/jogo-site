@@ -155,13 +155,18 @@ export class InventoryUI {
 
           toggleBtn.on('pointerup', () => {
             if (disabled) {
-              armor.disabledSlots.delete(slot);
-            } else {
-              if (armor.disabledSlots.size >= 2) {
-                // Remove o mais antigo para manter exatamente 2 desativados
-                const first = armor.disabledSlots.values().next().value;
-                armor.disabledSlots.delete(first);
+              // Ao ativar um slot, outro precisa ser desativado no lugar:
+              // penalidade de arma acima do nível exige SEMPRE duas peças.
+              const replacement = slots.find(candidate =>
+                candidate !== slot && !armor.disabledSlots.has(candidate)
+              );
+              if (replacement) {
+                armor.disabledSlots.delete(slot);
+                armor.disabledSlots.add(replacement);
               }
+            } else {
+              const first = armor.disabledSlots.values().next().value;
+              if (first) armor.disabledSlots.delete(first);
               armor.disabledSlots.add(slot);
             }
             player.refreshStatsFromAttributes();
