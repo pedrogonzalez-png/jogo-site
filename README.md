@@ -9,7 +9,19 @@ RPG de ação e exploração **top-down**, com combate souls-like, geração pro
 - Vite **8.3**
 - IndexedDB para saves
 
-## Rodar localmente
+## Rodar localmente## Auditoria e testes automatizados
+
+A auditoria técnica realizada em 21/10/2026 está em [docs/06-auditoria/AUDITORIA_CODIGO_2026-10-21.md](docs/06-auditoria/AUDITORIA_CODIGO_2026-10-21.md). A [matriz de evidências dos 55 requisitos](docs/06-auditoria/MATRIZ_55_TAREFAS.md) separa os status históricos dos testes atuais.
+
+Para rodar as regressões de lógica e integridade:
+
+```bash
+npm test
+```
+
+No [CI](https://github.com/pedrogonzalez-png/jogo-site/actions/runs/39677024455), **21 testes passaram e o build concluiu**. Isso não substitui jogar e avaliar os visuais ASCII no navegador.
+
+
 
 É necessário Node.js e npm compatíveis com a versão instalada do Vite.
 
