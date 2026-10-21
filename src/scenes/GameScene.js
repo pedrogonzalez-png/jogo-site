@@ -841,6 +841,17 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  _ensureCombatRecord(enemy) {
+    // Primeiro contato define a diferença de nível; ataques seguintes,
+    // efeitos elementais e golpes fatais não sobrescrevem a fotografia.
+    if (!enemy || enemy._combatRecord || enemy.getData?.('combatRecord')) return;
+    const record = this.abyssChallenge.recordCombatStart(
+      this.levelSystem.level, enemy.level
+    );
+    enemy._combatRecord = record;
+    enemy.setData?.('combatRecord', record);
+  }
+
   _processPlayerAttackZone(x, y, radius, attackData, type) {
     if (!this._activeEnemies) return;
 
@@ -849,15 +860,8 @@ export class GameScene extends Phaser.Scene {
       const dist = Phaser.Math.Distance.Between(x, y, enemy.x, enemy.y);
       if (dist > radius + 16) continue;
 
-      // Fixar o desafio no PRIMEIRO confronto, antes do hit: a morte
-      // ocorre de forma síncrona dentro de processHit/takeDamage.
-      if (!enemy._combatRecord && !enemy.getData?.('combatRecord')) {
-        const combatRecord = this.abyssChallenge.recordCombatStart(
-          this.levelSystem.level, enemy.level
-        );
-        enemy._combatRecord = combatRecord;
-        enemy.setData?.('combatRecord', combatRecord);
-      }
+      // Registrar antes do hit, inclusive quando ele for fatal.
+      this._ensureCombatRecord(enemy);
 
       // Resolve hit via CombatSystem
       const hitResult = CombatSystem.processHit(
@@ -1707,6 +1711,8 @@ export class GameScene extends Phaser.Scene {
               critChance: this.player.critChance,
               critMultiplier: this.player.critMultiplier,
             });
+            // Magias/projéteis também podem matar no primeiro contato.
+            this._ensureCombatRecord(enemy);
             enemy.takeDamage(result.finalDamage);
             enemy.balanceSystem?.takePoiseDamage(sd.equilDamage ?? 20);
             if (sd.element && enemy.statusSystem) {
