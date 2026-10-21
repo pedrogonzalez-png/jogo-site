@@ -1,0 +1,23 @@
+# Dependências
+node_modules/
+
+# Build gerado pelo Vite (arquivos já versionados exigem remoção manual do índice)
+dist/
+
+# Segredos locais
+.env
+.env.*
+!.env.example
+
+# Logs, cobertura e arquivos temporários
+*.log
+coverage/
+.nyc_output/
+*.tmp
+*.bak
+
+# Editor e sistema
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
