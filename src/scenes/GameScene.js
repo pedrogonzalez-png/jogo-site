@@ -1102,19 +1102,28 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  _clearDeathScreen() {
+    for (const obj of this._deathScreenObjects ?? []) {
+      if (obj?.active) obj.destroy();
+    }
+    this._deathScreenObjects = [];
+  }
+
   _showDeathScreen() {
     const MONO = '"Courier New", "Consolas", monospace';
     const W = this.cameras.main.width;
     const H = this.cameras.main.height;
 
+    this._clearDeathScreen();
     this.cameras.main.fadeOut(600, 0, 0, 0);
     this.cameras.main.once('camerafadeoutcomplete', () => {
-      // Tela de morte
+      // Agrupa todos os componentes da tela para limpeza no respawn.
       const overlay = this.add.rectangle(
-        this.cameras.main.scrollX + W / 2,
-        this.cameras.main.scrollY + H / 2,
+        W / 2,
+        H / 2,
         W, H, 0x000000, 0.95
       ).setDepth(500).setScrollFactor(0);
+      this._deathScreenObjects = [overlay];
 
       // Morte em ASCII art
       const deathArt = [
@@ -1123,34 +1132,41 @@ export class GameScene extends Phaser.Scene {
         '   ╚╝ ╚═╝╚═╝╚═╝  ╩ ╩╚═╝╩╚═╩╚═╚═╝╚═╝  ',
       ];
       deathArt.forEach((line, i) => {
-        this.add.text(W / 2, H / 2 - 80 + i * 18, line, {
+        const text = this.add.text(W / 2, H / 2 - 80 + i * 18, line, {
           fontFamily: MONO, fontSize: '14px', color: '#881111',
         }).setOrigin(0.5).setScrollFactor(0).setDepth(501);
+        this._deathScreenObjects.push(text);
       });
 
-      this.add.text(W / 2, H / 2 - 10, `$ XP perdida no local: ${this.xpSystem.lost}`, {
+      const xpLabel = this.add.text(W / 2, H / 2 - 10, `$ XP perdida no local: ${this.xpSystem.lost}`, {
         fontFamily: MONO, fontSize: '14px', color: '#ffcc00',
       }).setOrigin(0.5).setScrollFactor(0).setDepth(501);
+      this._deathScreenObjects.push(xpLabel);
 
       const respawnBtn = this.add.text(W / 2, H / 2 + 40, '> Renascer no Santuário <', {
         fontFamily: MONO, fontSize: '16px', color: '#ffddaa',
         padding: { x: 12, y: 6 },
       }).setOrigin(0.5).setScrollFactor(0).setDepth(501).setInteractive();
 
+      this._deathScreenObjects.push(respawnBtn);
       respawnBtn.on('pointerover', () => respawnBtn.setColor('#ffffff'));
       respawnBtn.on('pointerout',  () => respawnBtn.setColor('#ffddaa'));
       respawnBtn.on('pointerup', () => {
-        overlay.destroy();
+        this._clearDeathScreen();
         this._respawnAtSanctuary();
       });
 
       const menuBtn = this.add.text(W / 2, H / 2 + 80, '> Menu Principal <', {
         fontFamily: MONO, fontSize: '12px', color: '#666666',
       }).setOrigin(0.5).setScrollFactor(0).setDepth(501).setInteractive();
-      menuBtn.on('pointerover', () => menuBtn.setColor('#aaaaaa'));
+      this._deathScreenObjects.push(menuBtn);
+      menuBtn.on('pointerover', () => menuBtn.setColor('#aaaaaa');
       menuBtn.on('pointerout',  () => menuBtn.setColor('#666666'));
 
-      menuBtn.on('pointerup', () => this.scene.start('MainMenuScene'));
+      menuBtn.on('pointerup', () => {
+        this._clearDeathScreen();
+        this.scene.start('MainMenuScene');
+      });
     });
   }
 
@@ -1188,6 +1204,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   _clearRoom() {
+    // Projéteis são persistidos separadamente da lista de GameObjects.
+    // Esvaziar a lista evita que objetos da sala antiga continuem colidindo
+    // com inimigos/jogador depois da transição.
+    for (const projectile of this._activeProjectiles ?? []) {
+      if (projectile.obj?.active) projectile.obj.destroy();
+    }
+    this._activeProjectiles = [];
+
     // ── Destrói perigos ambientais antes de qualquer outra coisa ──
     if (this._hazardManager) {
       this._hazardManager.destroy();
