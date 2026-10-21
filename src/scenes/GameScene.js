@@ -1426,7 +1426,8 @@ export class GameScene extends Phaser.Scene {
       if (!this.inventorySystem.add(piece, 'armors')) return;
       this.hud.showNotification(`📦 ${piece.name} (${rarity}) [Nv.${areaLevel}]`, '#88ddff', 3000);
     } else {
-      const weaponIds = Object.keys(WEAPONS);
+      // Baús aleatórios não criam cópias comuns de armas exclusivas de chefes.
+      const weaponIds = Object.keys(WEAPONS).filter(id => WEAPONS[id].rarity !== 'UNIQUE');
       const id = rng.pick(weaponIds);
       const item = { ...WEAPONS[id], rarity, itemLevel: areaLevel };
       this.inventorySystem.add(item, 'weapons');
