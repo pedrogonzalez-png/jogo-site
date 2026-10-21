@@ -2,6 +2,8 @@
 
 > **Última descrição de referência:** 2026-10-09. Esta página agora é um **índice de arquitetura**. As seções técnicas originais permanecem nos documentos vinculados, sem mudança de conteúdo ou revalidação do código.
 
+> **Leitura do código em 2026-10-21:** o renderer já utiliza módulos em **src/ascii/**, incluindo TextureBootManager e KnightArt, que não constavam na antiga árvore de 2026-10-09. Consulte [direção artística ASCII](03-conteudo/DIRECAO_ARTISTICA_ASCII.md) e [registro de divergências](04-gestao/REGISTRO_DE_DIVERGENCIAS.md). As páginas extraídas preservam o texto histórico.
+
 ## Documentação técnica
 
 | Documento | Assuntos | Seções antigas |
