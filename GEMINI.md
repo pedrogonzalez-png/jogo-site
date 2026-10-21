@@ -1,5 +1,7 @@
 # Abismo — instruções de contexto para Gemini / Antigravity IDE
 
+> **AUDITORIA TÉCNICA ATUAL (2026-10-21):** leia também `docs/06-auditoria/AUDITORIA_CODIGO_2026-10-21.md` e `docs/06-auditoria/MATRIZ_55_TAREFAS.md`. Elas registram as alterações de código, 21 testes automatizados aprovados e pendências como validação visual no navegador. **Não marcar o jogo inteiro como validado apenas pelo CI.**
+
 Este repositório é um RPG de ação top-down com **Phaser 4.2.1 + Vite 8.3 + JavaScript ES Modules**. **Não usar React** nem reescrever o motor.
 
 ## Antes de editar qualquer arquivo
