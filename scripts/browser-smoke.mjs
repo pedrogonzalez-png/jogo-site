@@ -67,12 +67,14 @@ try {
       enemies: scene._activeEnemies?.length,
       playerHP: scene.player?.hp,
       playerActive: scene.player?.active,
+      cameraZoom: scene.cameras.main.zoom,
       hasKnight: game.textures.exists('player_idle_0'),
       hasBossArt: game.textures.exists('boss_senhor_das_cinzas'),
     };
   });
   assert.ok(state.playerActive && state.playerHP > 0, 'Jogador não inicializado');
   assert.ok(state.rooms >= 8 && state.biome, 'Área inicial inválida');
+  assert.equal(state.cameraZoom, 1, 'Zoom da câmera corta o HUD e inventário');
   assert.equal(state.hasKnight, true, 'Textura de cavaleiro ausente');
   assert.equal(state.hasBossArt, true, 'Textura de chefe ausente');
 
@@ -122,6 +124,8 @@ try {
   await page.waitForFunction(
     () => (window.__ABISMO_GAME__.scene.getScene('GameScene')._deathScreenObjects?.length ?? 0) >= 7,
     null, { timeout: 15000 });
+  // Capturar após a transição de fadeIn do modal, não durante tela preta.
+  await page.waitForTimeout(350);
   await page.screenshot({ path: `${artifacts}/morte.png`, timeout: 20000 });
   const deathOverlayCount = await page.evaluate(() =>
     window.__ABISMO_GAME__.scene.getScene('GameScene')._deathScreenObjects.length);
