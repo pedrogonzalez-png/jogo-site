@@ -1,5 +1,12 @@
 # Changelog da documentação — Abismo
 
+## 2026-10-21 — revisão das capturas de Chromium e correções visuais
+
+- [CI 39680748262](https://github.com/pedrogonzalez-png/jogo-site/actions/runs/39680748262) passou com 24 testes, build e browser smoke após os ajustes finais.
+- Foram abertas as capturas; confirmados o inventário cortado pelo zoom 1,5× e a tela de morte totalmente preta. Corrigidos com zoom 1 e restauração de fade; screenshots posteriores mostram interface completa e modal legível.
+- O fundo dos tiles passou do preto absoluto a um cinza bem escuro; **contraste geral, legibilidade de fontes e animações ainda exigem QA visual**.
+- Achados AUD-026 a AUD-029 documentados no [relatório final](../06-auditoria/RELATORIO_FINAL_2026-10-21.md). Nenhuma alteração feita na matriz original da arte do cavaleiro.
+
 ## 2026-10-21 — encerramento da fase técnica da auditoria (PR #3)
 
 - O relatório final foi consolidado em [docs/06-auditoria/RELATORIO_FINAL_2026-10-21.md](../06-auditoria/RELATORIO_FINAL_2026-10-21.md).
