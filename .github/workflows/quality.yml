@@ -1,0 +1,30 @@
+name: Abismo - qualidade e regressao
+
+on:
+  push:
+    branches:
+      - main
+      - 'fix/**'
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Testes automatizados
+        run: npm test
+      - name: Build de producao
+        run: npm run build
