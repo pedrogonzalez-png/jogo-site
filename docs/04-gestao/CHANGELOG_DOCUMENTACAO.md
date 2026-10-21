@@ -1,5 +1,15 @@
 # Changelog da documentação — Abismo
 
+## 2026-10-21 — auditoria real do código e evidências (PR #3)
+
+- Foram inspecionados estaticamente **45 arquivos JavaScript** em `src/`, com atualizações de gameplay, inventário, loot, geração de salas e saves propostas em branch separada.
+- Adicionada [auditoria técnica detalhada](../06-auditoria/AUDITORIA_CODIGO_2026-10-21.md) com defeitos observados, correções efetuadas, limitações e casos de QA não executados.
+- Adicionada [matriz dos 55 IDs legados](../06-auditoria/MATRIZ_55_TAREFAS.md), sem alterar indevidamente o snapshot de conclusão de 09/10.
+- Introduzidos 3 arquivos de testes e CI (21 casos aprovados, 0 falhas, build Vite aprovado); **nenhuma validação jogável ou de FPS feita até aqui**.
+- Lacunas documentadas: 6 famílias de armas concretas versus 9 previstas; recompensa especial +200 incompleta; animações do cavaleiro a revisar; áudio/replays sem confirmação de integração real.
+- As correções propostas pertencem ao PR #3, separado do merge documental anterior.
+
+
 ## 2026-10-21 — organização e preparação para Antigravity
 
 **Natureza:** alterações exclusivas em Markdown. Sem implementação, build novo ou execução do jogo.
