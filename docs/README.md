@@ -60,7 +60,8 @@ Documentação dividida do checklist de 2026-10-09, com texto preservado por se�
 ## 5. Especificações detalhadas atuais
 
 - [Guia dos dez biomas](02-mundo/GUIA_DE_BIOMAS.md) — IDs, faixas, pools, hazards, ASCII e testes.
-- [Direção artística ASCII](03-conteudo/DIRECAO_ARTISTICA_ASCII.md) — referência do cavaleiro, animações, inimigos, chefes, água, paredes, materiais, pré-renderização e QA.
+- [Direção artística ASCII](03-conteudo/DIRECAO_ARTISTICA_ASCII.md)
+- [Direção artística V2 — cenários, inimigos e chefes](03-conteudo/DIRECAO_ARTISTICA_V2.md) — diagnóstico visual, padrões de bioma, etapas de produção e critérios de aceite. — referência do cavaleiro, animações, inimigos, chefes, água, paredes, materiais, pré-renderização e QA.
 - [Fantasmas e rankings assíncronos](03-conteudo/FANTASMAS_ASSINCRONOS.md) — competir contra a própria run e futuras corridas assíncronas; proposta, não implementado.
 - [Narrativa, áudio, interface e acessibilidade](03-conteudo/NARRATIVA_AUDIO_E_INTERFACE.md) — contratos e requisitos, sem canon inventado.
 
