@@ -9,6 +9,7 @@ import { ENEMY_ART } from './EnemyArt.js';
 import { BOSS_ART } from './BossArt.js';
 import { ENVIRONMENT_ART } from './EnvironmentArt.js';
 import { LIQUIDS_AND_VFX } from './LiquidsAndVFXArt.js';
+import { getBiomeSurface } from './BiomeSurfaceArt.js';
 import { BIOME_ASCII_PALETTES, MATERIALS } from './AsciiPalette.js';
 
 export class TextureBootManager {
@@ -344,33 +345,37 @@ export class TextureBootManager {
       fontSize: 3.5,
     });
 
-    // ── 7. TEXTURAS BIÔMICAS ESPECÍFICAS (Todos os 10 biomas) ──
+    // ── 7. ARQUITETURA ASCII POR BIOMA ─────────────────────────
+    // Não basta recolorir a mesma pedra: cada bioma recebe matrizes
+    // próprias de pisos e paredes. Chaves antigas são preservadas.
     for (const [biomeKey, biomePalette] of Object.entries(BIOME_ASCII_PALETTES)) {
-      // Parede do bioma
+      const floors = {
+        ...biomePalette.floor,
+        '~': biomePalette.floor['='], // ondulações dos canais do Aqueduto
+      };
+      const walls = biomePalette.wall;
+
       AsciiRenderer.registerTexture(scene, `tile_wall_${biomeKey}`, {
-        lines: ENVIRONMENT_ART.walls.solid_0.lines,
-        palette: biomePalette.wall,
+        lines: getBiomeSurface(biomeKey, 'wall'),
+        palette: walls,
         ...tileOpts,
       });
 
-      // Parede rachada do bioma
       AsciiRenderer.registerTexture(scene, `tile_wall_cracked_${biomeKey}`, {
-        lines: ENVIRONMENT_ART.walls.cracked_0.lines,
-        palette: biomePalette.wall,
+        lines: getBiomeSurface(biomeKey, 'wall', 'cracked'),
+        palette: walls,
         ...tileOpts,
       });
 
-      // Chão do bioma
       AsciiRenderer.registerTexture(scene, `tile_floor_${biomeKey}`, {
-        lines: ENVIRONMENT_ART.floors.flagstone_0.lines,
-        palette: biomePalette.floor,
+        lines: getBiomeSurface(biomeKey, 'floor'),
+        palette: floors,
         ...tileOpts,
       });
 
-      // Chão com detritos do bioma
       AsciiRenderer.registerTexture(scene, `tile_floor_debris_${biomeKey}`, {
-        lines: ENVIRONMENT_ART.floors.flagstone_debris.lines,
-        palette: biomePalette.floor,
+        lines: getBiomeSurface(biomeKey, 'floor', 'debris'),
+        palette: floors,
         ...tileOpts,
       });
     }
