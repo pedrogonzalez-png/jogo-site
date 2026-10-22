@@ -227,7 +227,15 @@ export const BIOME_SURFACE_ART = {
 export function getBiomeSurface(biomeId, material, variant = 'base') {
   const model = BIOME_SURFACE_ART[biomeId];
   if (!model || !['floor', 'wall'].includes(material)) return null;
-  const base = model[material];
+  // O piso ocupa quase toda a área visível: excesso de caracteres cria
+  // ruído visual e concorre com o protagonista. Preserve detalhes de alta
+  // densidade nas paredes, objetos e monstros; deixe respiro no chão.
+  // A máscara é estática e NÃO consome o RNG do gerador procedural.
+  const base = material === 'floor'
+    ? model.floor.map((line, y) => [...line].map((ch, x) =>
+        (x * 3 + y * 5) % 11 < 4 ? ch : ' '
+      ).join(''))
+    : model.wall;
   if (variant === 'base') return base;
   if (variant !== 'debris' && variant !== 'cracked') return null;
   const cells = base.map(line => [...line]);
